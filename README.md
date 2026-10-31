@@ -1,2 +1,2 @@
 # humbol-stats-front
-Front-end for Humbol
+Front-end for Humbol app.
