@@ -9,20 +9,48 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Alert } from "@/components/ui/alert";
+import { AssetImage } from "@/components/app/asset-image";
 import type { PlayerStats, SprintEvent } from "@/lib/types";
 
 interface Props {
   stats: PlayerStats[];
   sprints: SprintEvent[];
   matchId: string;
+  sprintsAvailable: boolean;
+  sprintsReason: string | null;
 }
 
 /** Step 4 of the flow: stats dashboard (tables, charts, heatmaps, sprints). */
-export function StatsDashboard({ stats, sprints, matchId }: Props) {
+export function StatsDashboard({
+  stats,
+  sprints,
+  matchId,
+  sprintsAvailable,
+  sprintsReason,
+}: Props) {
   return (
     <Tabs defaultValue="resumen" className="flex flex-col gap-4">
       <TabsList>
@@ -57,18 +85,40 @@ export function StatsDashboard({ stats, sprints, matchId }: Props) {
               <TableBody>
                 {stats.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.id}</TableCell>
-                    <TableCell>
-                      <Badge variant={p.team === "A" ? "destructive" : "secondary"}>
-                        {p.team}
-                      </Badge>
+                    <TableCell className="font-medium">
+                      {p.displayName ?? p.id}
                     </TableCell>
-                    <TableCell className="text-right">{p.minutesPlayed}</TableCell>
-                    <TableCell className="text-right">{p.distanceKm}</TableCell>
-                    <TableCell className="text-right">{p.avgSpeedKmh}</TableCell>
-                    <TableCell className="text-right">{p.maxSpeedKmh}</TableCell>
+                    <TableCell>
+                      {p.teamId ? (
+                        <Badge
+                          variant={
+                            p.teamId === "A" ? "destructive" : "secondary"
+                          }
+                        >
+                          {p.teamId}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Sin asignar
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.minutesPlayed}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.distanceKm}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.avgSpeedKmh}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.maxSpeedKmh}
+                    </TableCell>
                     <TableCell className="text-right">{p.sprints}</TableCell>
-                    <TableCell className="text-right">{p.coveragePct}%</TableCell>
+                    <TableCell className="text-right">
+                      {p.coveragePct}%
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -81,16 +131,26 @@ export function StatsDashboard({ stats, sprints, matchId }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Distancia recorrida (km)</CardTitle>
-            <CardDescription>Comparación entre jugadores del partido</CardDescription>
+            <CardDescription>
+              Comparación entre jugadores del partido
+            </CardDescription>
           </CardHeader>
           <CardContent className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats} margin={{ left: -20, right: 8 }}>
+              <BarChart
+                data={stats}
+                margin={{ left: -20, right: 8 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="id" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip />
-                <Bar dataKey="distanceKm" name="Distancia" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="distanceKm"
+                  name="Distancia"
+                  fill="#22c55e"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -102,13 +162,21 @@ export function StatsDashboard({ stats, sprints, matchId }: Props) {
           {stats.map((p) => (
             <Card key={p.id}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">{p.id}</CardTitle>
+                <CardTitle className="text-sm">
+                  {p.displayName ?? p.id}
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                {/* Backend asset: heatmaps/player_P01.png */}
-                <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">
-                  heatmap de {p.id}
-                </div>
+                <AssetImage
+                  src={p.heatmapUrl}
+                  alt={`Heatmap de ${p.displayName ?? p.id}`}
+                  className="w-full h-auto rounded-md border"
+                  fallback={
+                    <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">
+                      Heatmap no disponible
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
           ))}
@@ -116,18 +184,33 @@ export function StatsDashboard({ stats, sprints, matchId }: Props) {
       </TabsContent>
 
       <TabsContent value="sprints">
-        <SprintsTable sprints={sprints} matchId={matchId} />
+        {!sprintsAvailable ? (
+          <Alert variant="destructive">
+            Sprints no disponibles para este partido.
+            {sprintsReason ? ` (${sprintsReason})` : ""}
+          </Alert>
+        ) : (
+          <SprintsTable sprints={sprints} matchId={matchId} />
+        )}
       </TabsContent>
     </Tabs>
   );
 }
 
-function SprintsTable({ sprints, matchId }: { sprints: SprintEvent[]; matchId: string }) {
+function SprintsTable({
+  sprints,
+  matchId,
+}: {
+  sprints: SprintEvent[];
+  matchId: string;
+}) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sprints detectados</CardTitle>
-        <CardDescription>{`Marcas de tiempo del partido ${matchId}`}</CardDescription>
+        <CardDescription>
+          {`Marcas de tiempo del partido ${matchId}`}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
@@ -142,13 +225,17 @@ function SprintsTable({ sprints, matchId }: { sprints: SprintEvent[]; matchId: s
           </TableHeader>
           <TableBody>
             {sprints.map((s, i) => {
-              const key = `${s.id}-${s.startTimestamp}-${i}`;
+              const key = `${s.id}-${s.startSec}-${i}`;
               return (
                 <TableRow key={key}>
-                  <TableCell className="font-medium">{s.id}</TableCell>
-                  <TableCell>{s.startTimestamp}</TableCell>
-                  <TableCell className="text-right">{s.durationSec}s</TableCell>
-                  <TableCell className="text-right">{s.maxSpeedKmh} km/h</TableCell>
+                  <TableCell className="font-medium">{s.playerId}</TableCell>
+                  <TableCell>{s.startClock}</TableCell>
+                  <TableCell className="text-right">
+                    {s.durationSec}s
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {s.maxSpeedKmh} km/h
+                  </TableCell>
                   <TableCell>
                     {s.youtubeUrl && (
                       <a
