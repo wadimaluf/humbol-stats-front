@@ -3,6 +3,16 @@ import type { NextConfig } from "next";
 // Backend base URL. In local dev this comes from .env.local; in production it
 // must be provided as a real environment variable (next.config runs before
 // .env files are guaranteed to be loaded).
+//
+// On Vercel the rewrites are baked at build time, so a missing BACKEND_URL
+// would silently point production at localhost. Fail the build instead.
+if (process.env.VERCEL && !process.env.BACKEND_URL) {
+  throw new Error(
+    "BACKEND_URL is required on Vercel. Set it in Project Settings → " +
+      "Environment Variables (Production and Preview) and redeploy.",
+  );
+}
+
 const backendUrl = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(
   /\/$/,
   "",
