@@ -71,6 +71,7 @@ export function EmptyState({
         <Button
           className="mt-2"
           variant="outline"
+          nativeButton={false}
           render={<Link href={actionHref} />}
         >
           {actionLabel}

@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PencilIcon } from "lucide-react";
+import { PencilIcon, UserRoundIcon } from "lucide-react";
 import { AssetImage } from "@/components/app/asset-image";
 import type { RosterEntry, Team } from "@/lib/types";
 
@@ -54,10 +54,16 @@ export function RosterAssigner({ players, teams }: Props) {
   });
 
   function drop(team: Assignment) {
-    setEntries((prev) =>
-      prev.map((p) => (p.id === draggingId ? { ...p, teamId: team } : p)),
-    );
+    if (draggingId) {
+      assignPlayer(draggingId, team);
+    }
     setDraggingId(null);
+  }
+
+  function assignPlayer(id: string, team: Assignment) {
+    setEntries((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, teamId: team } : p)),
+    );
   }
 
   function renamePlayer(id: string, name: string) {
@@ -97,7 +103,7 @@ export function RosterAssigner({ players, teams }: Props) {
                 </CardDescription>
               </CardHeader>
               <CardContent
-                className="min-h-32"
+                className="min-h-20 md:min-h-32"
                 onDrop={() => drop(letter)}
                 onDragOver={onDragOver}
                 data-testid={`team-dropzone-${color}`}
@@ -111,6 +117,7 @@ export function RosterAssigner({ players, teams }: Props) {
                         entry={p}
                         onDragStart={setDraggingId}
                         onRename={renamePlayer}
+                        onAssign={assignPlayer}
                       />
                     ))}
                 </div>
@@ -135,6 +142,7 @@ export function RosterAssigner({ players, teams }: Props) {
                 entry={p}
                 onDragStart={setDraggingId}
                 onRename={renamePlayer}
+                onAssign={assignPlayer}
               />
             ))}
           </div>
@@ -188,10 +196,12 @@ function PlayerChip({
   entry,
   onDragStart,
   onRename,
+  onAssign,
 }: {
   entry: RosterEntry;
   onDragStart: (id: string) => void;
   onRename: (id: string, name: string) => void;
+  onAssign: (id: string, team: Assignment) => void;
 }) {
   const teamBadge =
     entry.teamId === "A" || entry.teamId === "B"
@@ -200,7 +210,7 @@ function PlayerChip({
 
   return (
     <div
-      className="group flex w-20 cursor-grab flex-col items-center gap-1 rounded-lg border bg-card p-2 shadow-sm transition-transform hover:scale-105 active:cursor-grabbing"
+      className="group flex w-24 cursor-grab flex-col items-center gap-1 rounded-lg border bg-card p-2 shadow-sm transition-transform hover:scale-105 active:cursor-grabbing"
       title={`El nombre de ${entry.id} es editable y la foto se arrastra a un equipo`}
     >
       {/* Backend asset: roster.csv/png gallery photo. Thumbnail doubles as
@@ -216,6 +226,11 @@ function PlayerChip({
             src={entry.thumbnailUrl}
             alt=""
             className="h-full w-full object-cover"
+            fallback={
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <UserRoundIcon className="size-6" aria-hidden />
+              </div>
+            }
           />
         </div>
         <PencilIcon
@@ -228,11 +243,23 @@ function PlayerChip({
       </Badge>
       <Input
         value={entry.displayName ?? ""}
-        placeholder={entry.id}
+        placeholder="Nombre"
         aria-label={`Nombre del jugador ${entry.id}`}
         className="h-6 border-transparent bg-transparent px-1 text-center text-xs shadow-none focus-visible:bg-card"
         onChange={(e) => onRename(entry.id, e.target.value)}
       />
+      <select
+        aria-label={`Equipo de ${entry.id}`}
+        value={entry.teamId ?? ""}
+        onChange={(e) =>
+          onAssign(entry.id, (e.target.value || null) as Assignment)
+        }
+        className="h-6 w-full rounded border bg-card px-1 text-center text-[0.7rem] text-foreground"
+      >
+        <option value="">Sin equipo</option>
+        <option value="A">Equipo A</option>
+        <option value="B">Equipo B</option>
+      </select>
     </div>
   );
 }

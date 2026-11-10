@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:responsive": "node scripts/check-responsive.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -27,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "puppeteer-core": "^25.16.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

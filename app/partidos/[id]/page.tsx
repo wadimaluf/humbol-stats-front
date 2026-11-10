@@ -63,7 +63,7 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
       </div>
 
       <StatsDashboard
-        matchId={id}
+        matchTitle={match.title}
         stats={stats.players}
         sprints={sprints.available ? sprints.items : []}
         sprintsAvailable={sprints.available}

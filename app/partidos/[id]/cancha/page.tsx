@@ -15,6 +15,7 @@ import { AssetImage } from "@/components/app/asset-image";
 import { ErrorState, PageSkeleton } from "@/components/app/data-states";
 import { BackendError, getCalibration } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
+import { describeCalibrationLabel } from "@/lib/format";
 import type { Calibration } from "@/lib/types";
 
 export default function CourtPage(props: PageProps<"/partidos/[id]/cancha">) {
@@ -79,13 +80,13 @@ async function CourtContent({ params }: { params: Promise<{ id: string }> }) {
                 </div>
               }
             />
-            <div className="flex gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span>
                 Estado:{" "}
-                {calibration.approved ? "Aprobada" : "Pendiente de revisión"}
-                <span className="text-xs font-normal ml-1 opacity-70">
-                  ({calibration.status})
-                </span>
+                {describeCalibrationLabel(
+                  calibration.status,
+                  calibration.approved,
+                )}
               </span>
               {calibration.rmsM != null && (
                 <span>Error RMS: {calibration.rmsM} m</span>
@@ -98,11 +99,18 @@ async function CourtContent({ params }: { params: Promise<{ id: string }> }) {
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <Button variant="outline" render={<Link href={`/partidos/${id}/cancha?edit=1`} />}>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/partidos/${id}/cancha?edit=1`} />}
+            >
               Ajustar puntos
             </Button>
-            <Button render={<Link href={`/partidos/${id}/roster`} />}>
+            <Button
+              nativeButton={false}
+              render={<Link href={`/partidos/${id}/roster`} />}
+            >
               Confirmar y continuar
             </Button>
           </div>

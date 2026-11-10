@@ -38,12 +38,17 @@ export default function Home() {
           velocidad, sprints y mapas de calor.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-          <Button size="lg" render={<Link href="/partidos/nuevo" />}>
+          <Button
+            size="lg"
+            nativeButton={false}
+            render={<Link href="/partidos/nuevo" />}
+          >
             Subir un partido
           </Button>
           <Button
             size="lg"
             variant="outline"
+            nativeButton={false}
             render={<Link href="/partidos" />}
           >
             Ver partidos

@@ -33,7 +33,10 @@ export default function MatchesPage() {
             roster y cancha.
           </p>
         </div>
-        <Button render={<Link href="/partidos/nuevo" />}>
+        <Button
+          nativeButton={false}
+          render={<Link href="/partidos/nuevo" />}
+        >
           Subir un partido
         </Button>
       </div>
