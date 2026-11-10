@@ -130,6 +130,34 @@ export function getSprintEvents(
   );
 }
 
+/**
+ * Fetch every sprint event for a match by following `nextCursor`.
+ * The API paginates (50 by default), so a single request can silently
+ * truncate matches with many events.
+ */
+export async function getAllSprintEvents(
+  matchId: string,
+  pageSize = 200,
+): Promise<SprintList> {
+  const first = await getSprintEvents(matchId, undefined, pageSize);
+  if (!first.nextCursor) {
+    return first;
+  }
+
+  const items = [...first.items];
+  const seen = new Set<string>();
+  let cursor: string | null = first.nextCursor;
+
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const page = await getSprintEvents(matchId, undefined, pageSize, cursor);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  }
+
+  return { ...first, items, nextCursor: null };
+}
+
 export function getRoster(matchId: string) {
   return request<Roster>(
     `/v1/matches/${encodeURIComponent(matchId)}/roster`,

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -25,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tabs,
   TabsContent,
@@ -39,7 +41,6 @@ import type { PlayerStats, SprintEvent } from "@/lib/types";
 interface Props {
   stats: PlayerStats[];
   sprints: SprintEvent[];
-  matchTitle: string;
   sprintsAvailable: boolean;
   sprintsReason: string | null;
 }
@@ -48,7 +49,6 @@ interface Props {
 export function StatsDashboard({
   stats,
   sprints,
-  matchTitle,
   sprintsAvailable,
   sprintsReason,
 }: Props) {
@@ -201,11 +201,7 @@ export function StatsDashboard({
             description="El partido está procesado, pero el motor no registró eventos de sprint."
           />
         ) : (
-          <SprintsTable
-            sprints={sprints}
-            matchTitle={matchTitle}
-            players={stats}
-          />
+          <SprintsTable sprints={sprints} players={stats} />
         )}
       </TabsContent>
     </Tabs>
@@ -251,53 +247,172 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+const SPRINT_PAGE_SIZE = 40;
+
+type SprintSort = "time" | "speed" | "distance";
+
 function SprintsTable({
   sprints,
-  matchTitle,
   players,
 }: {
   sprints: SprintEvent[];
-  matchTitle: string;
   players: PlayerStats[];
 }) {
   const names = new Map(players.map((p) => [p.id, p.displayName ?? p.id]));
   const hasYoutube = sprints.some((s) => s.youtubeUrl);
+  const [playerFilter, setPlayerFilter] = useState("all");
+  const [sort, setSort] = useState<SprintSort>("time");
+  const [visibleCount, setVisibleCount] = useState(SPRINT_PAGE_SIZE);
+
+  const playersWithSprints = useMemo(
+    () => players.filter((p) => sprints.some((s) => s.playerId === p.id)),
+    [players, sprints],
+  );
+
+  const fastest = useMemo(
+    () => sprints.reduce((best, s) => (s.maxSpeedKmh > best.maxSpeedKmh ? s : best)),
+    [sprints],
+  );
+  const longest = useMemo(
+    () => sprints.reduce((best, s) => (s.distanceM > best.distanceM ? s : best)),
+    [sprints],
+  );
+
+  const filtered = useMemo(() => {
+    const subset =
+      playerFilter === "all"
+        ? sprints
+        : sprints.filter((s) => s.playerId === playerFilter);
+    return [...subset].sort((a, b) => {
+      if (sort === "speed") return b.maxSpeedKmh - a.maxSpeedKmh;
+      if (sort === "distance") return b.distanceM - a.distanceM;
+      return a.startSec - b.startSec;
+    });
+  }, [sprints, playerFilter, sort]);
+
+  const visible = filtered.slice(0, visibleCount);
+
+  function changePlayer(value: string) {
+    setPlayerFilter(value);
+    setVisibleCount(SPRINT_PAGE_SIZE);
+  }
+
+  function changeSort(value: SprintSort) {
+    setSort(value);
+    setVisibleCount(SPRINT_PAGE_SIZE);
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sprints detectados</CardTitle>
-        <CardDescription>Marcas de tiempo · {matchTitle}</CardDescription>
+        <CardDescription>Marcas de tiempo desde el kickoff</CardDescription>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Jugador</TableHead>
-              <TableHead>Inicio</TableHead>
-              <TableHead className="text-right">Duración</TableHead>
-              <TableHead className="text-right">Vel. máx</TableHead>
-              {hasYoutube && <TableHead>YouTube</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sprints.map((s, i) => {
-              const key = `${s.id}-${s.startSec}-${i}`;
-              return (
-                <TableRow key={key}>
-                  <TableCell className="font-medium">
-                    {names.get(s.playerId) ?? s.playerId}
+      <CardContent className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SprintSummary label="Sprints" value={sprints.length} />
+          <SprintSummary label="Jugadores" value={playersWithSprints.length} />
+          <SprintSummary
+            label="Más rápido"
+            value={`${fastest.maxSpeedKmh} km/h`}
+            hint={names.get(fastest.playerId)}
+          />
+          <SprintSummary
+            label="Más largo"
+            value={`${longest.distanceM} m`}
+            hint={names.get(longest.playerId)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap gap-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-muted-foreground">Jugador</span>
+              <select
+                value={playerFilter}
+                onChange={(e) => changePlayer(e.target.value)}
+                className="h-8 rounded-md border bg-card px-2 text-sm text-foreground"
+              >
+                <option value="all">Todos</option>
+                {playersWithSprints.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName ?? p.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="text-muted-foreground">Ordenar por</span>
+              <select
+                value={sort}
+                onChange={(e) => changeSort(e.target.value as SprintSort)}
+                className="h-8 rounded-md border bg-card px-2 text-sm text-foreground"
+              >
+                <option value="time">Momento</option>
+                <option value="speed">Velocidad</option>
+                <option value="distance">Distancia</option>
+              </select>
+            </label>
+          </div>
+          <p className="text-muted-foreground text-sm tabular-nums">
+            {filtered.length === sprints.length
+              ? `${sprints.length} sprints`
+              : `${filtered.length} de ${sprints.length} sprints`}
+          </p>
+        </div>
+
+        <ul className="flex flex-col gap-2 sm:hidden">
+          {visible.map((s) => (
+            <SprintCard
+              key={`${s.id}-${s.startSec}`}
+              sprint={s}
+              name={names.get(s.playerId) ?? s.playerId}
+            />
+          ))}
+        </ul>
+
+        <div className="hidden overflow-x-auto sm:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Momento</TableHead>
+                <TableHead>Jugador</TableHead>
+                <TableHead className="text-right">Duración</TableHead>
+                <TableHead className="text-right">Distancia</TableHead>
+                <TableHead className="text-right">Vel. máx</TableHead>
+                <TableHead className="text-right">Vel. media</TableHead>
+                {hasYoutube && <TableHead>Video</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.map((s) => (
+                <TableRow key={`${s.id}-${s.startSec}`}>
+                  <TableCell className="tabular-nums">
+                    {s.startClock}
                   </TableCell>
-                  <TableCell>{s.startClock}</TableCell>
-                  <TableCell className="text-right">
-                    {s.durationSec}s
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">
+                        {names.get(s.playerId) ?? s.playerId}
+                      </span>
+                      <SprintRecordBadges sprint={s} />
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right tabular-nums">
+                    {s.durationSec.toFixed(2)} s
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {s.distanceM} m
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
                     {s.maxSpeedKmh} km/h
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {s.meanSpeedKmh} km/h
                   </TableCell>
                   {hasYoutube && (
                     <TableCell>
-                      {s.youtubeUrl && (
+                      {s.youtubeUrl ? (
                         <a
                           href={s.youtubeUrl}
                           target="_blank"
@@ -306,15 +421,100 @@ function SprintsTable({
                         >
                           Ver momento
                         </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                   )}
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {visible.length < filtered.length && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((n) => n + SPRINT_PAGE_SIZE)}
+            >
+              Ver más ({filtered.length - visible.length} restantes)
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function SprintSummary({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2">
+      <p className="text-muted-foreground text-xs uppercase tracking-wide">
+        {label}
+      </p>
+      <p className="font-semibold tabular-nums">{value}</p>
+      {hint && (
+        <p className="text-muted-foreground truncate text-xs">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+function SprintRecordBadges({ sprint }: { sprint: SprintEvent }) {
+  if (!sprint.isFastest && !sprint.isLongest) {
+    return null;
+  }
+  return (
+    <>
+      {sprint.isFastest && (
+        <Badge variant="outline">Récord de velocidad</Badge>
+      )}
+      {sprint.isLongest && (
+        <Badge variant="outline">Récord de distancia</Badge>
+      )}
+    </>
+  );
+}
+
+function SprintCard({ sprint, name }: { sprint: SprintEvent; name: string }) {
+  return (
+    <li className="rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">{name}</span>
+        <span className="text-muted-foreground text-sm tabular-nums">
+          {sprint.startClock}
+        </span>
+      </div>
+      {(sprint.isFastest || sprint.isLongest) && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          <SprintRecordBadges sprint={sprint} />
+        </div>
+      )}
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <Stat label="Duración" value={`${sprint.durationSec.toFixed(2)} s`} />
+        <Stat label="Distancia" value={`${sprint.distanceM} m`} />
+        <Stat label="Vel. máx" value={`${sprint.maxSpeedKmh} km/h`} />
+        <Stat label="Vel. media" value={`${sprint.meanSpeedKmh} km/h`} />
+      </dl>
+      {sprint.youtubeUrl && (
+        <a
+          href={sprint.youtubeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary mt-2 inline-block text-sm underline underline-offset-4"
+        >
+          Ver momento
+        </a>
+      )}
+    </li>
   );
 }

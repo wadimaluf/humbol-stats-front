@@ -4,7 +4,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { StatsDashboard } from "@/components/app/stats-dashboard";
 import { ErrorState, PageSkeleton } from "@/components/app/data-states";
-import { BackendError, getMatch, getPlayerStats, getSprintEvents } from "@/lib/api";
+import {
+  BackendError,
+  getAllSprintEvents,
+  getMatch,
+  getPlayerStats,
+} from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import type { MatchDetail, PlayerStatsList, SprintList } from "@/lib/types";
 
@@ -27,7 +32,7 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
     [match, stats, sprints] = await Promise.all([
       getMatch(id),
       getPlayerStats(id),
-      getSprintEvents(id),
+      getAllSprintEvents(id),
     ]);
   } catch (error) {
     if (error instanceof BackendError && error.status === 404) {
@@ -63,7 +68,6 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
       </div>
 
       <StatsDashboard
-        matchTitle={match.title}
         stats={stats.players}
         sprints={sprints.available ? sprints.items : []}
         sprintsAvailable={sprints.available}
