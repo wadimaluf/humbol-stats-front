@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Card,
   CardContent,
@@ -11,11 +11,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PencilIcon, UserRoundIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, UserRoundIcon } from "lucide-react";
 import { AssetImage } from "@/components/app/asset-image";
 import type { RosterEntry, Team } from "@/lib/types";
 
 type Assignment = "A" | "B" | null;
+type DropTarget = "A" | "B" | "unassigned" | null;
 
 interface Props {
   players: RosterEntry[];
@@ -24,21 +25,31 @@ interface Props {
 
 const TEAM_STYLES: Record<
   "A" | "B",
-  { badge: string; border: string; ring: string; placeholder: string }
+  {
+    badge: string;
+    border: string;
+    ring: string;
+    dropActive: string;
+    placeholder: string;
+  }
 > = {
   A: {
     badge: "bg-rose-100 text-rose-700 border-rose-200",
     border: "border-rose-300 bg-rose-50/40",
     ring: "focus-visible:ring-rose-500/30",
+    dropActive: "ring-2 ring-rose-400 bg-rose-100/70",
     placeholder: "Equipo A",
   },
   B: {
     badge: "bg-sky-100 text-sky-700 border-sky-200",
     border: "border-sky-300 bg-sky-50/40",
     ring: "focus-visible:ring-sky-500/30",
+    dropActive: "ring-2 ring-sky-400 bg-sky-100/70",
     placeholder: "Equipo B",
   },
 };
+
+const NOTICE_MS = 3200;
 
 /** Step 3 of the flow: drag auto-detected players into Team A / Team B.
  *
@@ -46,23 +57,55 @@ const TEAM_STYLES: Record<
  * persisted to the backend. Persistence will be added in v2.
  */
 export function RosterAssigner({ players, teams }: Props) {
-  const [entries, setEntries] = useState<RosterEntry[]>(players);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [teamNames, setTeamNames] = useState<Record<"A" | "B", string>>({
+  const initialTeamNames = {
     A: teams.find((t) => t.id === "A")?.name ?? "",
     B: teams.find((t) => t.id === "B")?.name ?? "",
-  });
+  };
+  const [entries, setEntries] = useState<RosterEntry[]>(players);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget>(null);
+  const [teamNames, setTeamNames] =
+    useState<Record<"A" | "B", string>>(initialTeamNames);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimer.current) {
+        clearTimeout(noticeTimer.current);
+      }
+    };
+  }, []);
+
+  function announce(message: string) {
+    setNotice(message);
+    if (noticeTimer.current) {
+      clearTimeout(noticeTimer.current);
+    }
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  }
 
   function drop(team: Assignment) {
     if (draggingId) {
       assignPlayer(draggingId, team);
     }
     setDraggingId(null);
+    setDropTarget(null);
   }
 
   function assignPlayer(id: string, team: Assignment) {
+    const player = entries.find((p) => p.id === id);
+    if (!player || player.teamId === team) {
+      return;
+    }
     setEntries((prev) =>
       prev.map((p) => (p.id === id ? { ...p, teamId: team } : p)),
+    );
+    const name = player.displayName || id;
+    announce(
+      team
+        ? `${name} asignado a ${teamNames[team] || TEAM_STYLES[team].placeholder}`
+        : `${name} quedó sin asignar`,
     );
   }
 
@@ -72,14 +115,80 @@ export function RosterAssigner({ players, teams }: Props) {
     );
   }
 
+  function resetChanges() {
+    setEntries(players);
+    setTeamNames(initialTeamNames);
+    setDraggingId(null);
+    setDropTarget(null);
+    announce("Cambios descartados");
+  }
+
   function onDragOver(event: React.DragEvent) {
     event.preventDefault();
   }
 
   const unassigned = entries.filter((p) => p.teamId === null);
+  const teamCounts = {
+    A: entries.filter((p) => p.teamId === "A").length,
+    B: entries.filter((p) => p.teamId === "B").length,
+  };
+  const dirty =
+    entries.some(
+      (p, i) =>
+        p.teamId !== players[i]?.teamId ||
+        p.displayName !== players[i]?.displayName,
+    ) ||
+    teamNames.A !== initialTeamNames.A ||
+    teamNames.B !== initialTeamNames.B;
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge className={TEAM_STYLES.A.badge}>
+              {teamNames.A || TEAM_STYLES.A.placeholder} · {teamCounts.A}
+            </Badge>
+            <Badge className={TEAM_STYLES.B.badge}>
+              {teamNames.B || TEAM_STYLES.B.placeholder} · {teamCounts.B}
+            </Badge>
+            <span className="text-muted-foreground">
+              {unassigned.length} sin asignar
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetChanges}
+              disabled={!dirty}
+            >
+              Descartar cambios
+            </Button>
+            <Button disabled variant="outline" size="sm">
+              Guardar roster (v2)
+            </Button>
+          </div>
+        </div>
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-muted-foreground flex min-h-5 items-center gap-1.5 text-sm"
+        >
+          {notice ? (
+            <>
+              <CheckIcon className="size-3.5 text-emerald-600" aria-hidden />
+              {notice}
+            </>
+          ) : (
+            <span>
+              Los nombres y equipos se mantienen en esta sesión hasta que
+              exista guardado (v2).
+            </span>
+          )}
+        </p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         {(["A", "B"] as const).map((letter) => {
           const styles = TEAM_STYLES[letter];
@@ -103,9 +212,19 @@ export function RosterAssigner({ players, teams }: Props) {
                 </CardDescription>
               </CardHeader>
               <CardContent
-                className="min-h-20 md:min-h-32"
+                className={`min-h-20 transition-colors md:min-h-32 ${
+                  dropTarget === letter ? styles.dropActive : ""
+                }`}
                 onDrop={() => drop(letter)}
-                onDragOver={onDragOver}
+                onDragOver={(event) => {
+                  onDragOver(event);
+                  setDropTarget(letter);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                    setDropTarget(null);
+                  }
+                }}
                 data-testid={`team-dropzone-${color}`}
               >
                 <div className="flex flex-wrap gap-3">
@@ -116,6 +235,10 @@ export function RosterAssigner({ players, teams }: Props) {
                         key={p.id}
                         entry={p}
                         onDragStart={setDraggingId}
+                        onDragEnd={() => {
+                          setDraggingId(null);
+                          setDropTarget(null);
+                        }}
                         onRename={renamePlayer}
                         onAssign={assignPlayer}
                       />
@@ -134,13 +257,33 @@ export function RosterAssigner({ players, teams }: Props) {
             Los 10 jugadores detectados automáticamente en el partido
           </CardDescription>
         </CardHeader>
-        <CardContent onDrop={() => drop(null)} onDragOver={onDragOver}>
+        <CardContent
+          className={`transition-colors ${
+            dropTarget === "unassigned"
+              ? "ring-2 ring-border bg-muted/50"
+              : ""
+          }`}
+          onDrop={() => drop(null)}
+          onDragOver={(event) => {
+            onDragOver(event);
+            setDropTarget("unassigned");
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+              setDropTarget(null);
+            }
+          }}
+        >
           <div className="flex flex-wrap gap-3">
             {unassigned.map((p) => (
               <PlayerChip
                 key={p.id}
                 entry={p}
                 onDragStart={setDraggingId}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDropTarget(null);
+                }}
                 onRename={renamePlayer}
                 onAssign={assignPlayer}
               />
@@ -148,12 +291,6 @@ export function RosterAssigner({ players, teams }: Props) {
           </div>
         </CardContent>
       </Card>
-
-      <div className="flex justify-end">
-        <Button disabled variant="outline">
-          Guardar roster (disponible en v2)
-        </Button>
-      </div>
     </div>
   );
 }
@@ -195,11 +332,13 @@ function TeamNameInput({
 function PlayerChip({
   entry,
   onDragStart,
+  onDragEnd,
   onRename,
   onAssign,
 }: {
   entry: RosterEntry;
   onDragStart: (id: string) => void;
+  onDragEnd: () => void;
   onRename: (id: string, name: string) => void;
   onAssign: (id: string, team: Assignment) => void;
 }) {
@@ -219,6 +358,7 @@ function PlayerChip({
         <div
           draggable
           onDragStart={() => onDragStart(entry.id)}
+          onDragEnd={onDragEnd}
           className="h-14 w-14 cursor-grab touch-none overflow-hidden rounded-md bg-muted active:cursor-grabbing"
           aria-hidden
         >
