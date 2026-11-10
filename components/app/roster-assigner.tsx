@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckIcon, PencilIcon, UserRoundIcon } from "lucide-react";
+import { CheckIcon, PencilIcon } from "lucide-react";
 import { AssetImage } from "@/components/app/asset-image";
 import type { RosterEntry, Team } from "@/lib/types";
 
@@ -347,6 +347,9 @@ function PlayerChip({
       ? TEAM_STYLES[entry.teamId].badge
       : undefined;
 
+  const initials =
+    entry.displayName?.split(" ").reduce((acc, word) => acc + word[0], "") ?? entry.id.slice(0, 2).toUpperCase();
+
   return (
     <div
       className="group flex w-24 cursor-grab flex-col items-center gap-1 rounded-lg border bg-card p-2 shadow-sm transition-transform hover:scale-105 active:cursor-grabbing"
@@ -365,10 +368,14 @@ function PlayerChip({
           <AssetImage
             src={entry.thumbnailUrl}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover rounded-md"
             fallback={
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <UserRoundIcon className="size-6" aria-hidden />
+              <div
+                className="flex h-full w-full items-center justify-center rounded-md bg-gradient-to-br from-card via-muted/30 to-card"
+              >
+                <span className="text-xs font-medium text-muted-foreground">
+                  {initials}
+                </span>
               </div>
             }
           />
@@ -378,6 +385,12 @@ function PlayerChip({
           aria-hidden
         />
       </div>
+      {entry.displayName != null && (
+        <span className="text-xs font-medium text-capitalize truncate">{entry.displayName}</span>
+      )}
+      {entry.displayName == null && (
+        <span className="text-xs font-medium text-muted-foreground truncate">{entry.id}</span>
+      )}
       <Badge variant="secondary" className={teamBadge ?? undefined}>
         {entry.id}
       </Badge>
