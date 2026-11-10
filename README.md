@@ -4,9 +4,9 @@ Front-end for Humbol app: interfaz web para la analítica automática de videos 
 
 ## Flujo principal
 
-1. **Subir partido** — `/partidos/nuevo`: video MP4 o link de YouTube + marca de kickoff.
+1. **Subir partido** — `/partidos/nuevo`: placeholder de la carga de video y jobs (v2).
 2. **Verificar cancha** — `/partidos/[id]/cancha`: revisión del ROI/calibración.
-3. **Asignar equipos** — `/partidos/[id]/roster`: drag & drop de los 10 jugadores detectados.
+3. **Asignar equipos** — `/partidos/[id]/roster`: drag & drop o selector por jugador.
 4. **Dashboard de estadísticas** — `/partidos/[id]`: tabla por jugador, gráficos, heatmaps y lista de sprints con marcas de tiempo.
 
 ## Stack
@@ -18,21 +18,40 @@ Front-end for Humbol app: interfaz web para la analítica automática de videos 
 
 ## Getting Started
 
-First, run the development server:
+El frontend consume la API v1 del motor (`GET /v1/*`). Para levantar todo el
+entorno local (backend + frontend) desde el workspace de integración:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd ~/Dev/integration
+bash scripts/dev_up.sh up      # up|down|restart|status|logs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+El script verifica el venv, `node_modules` y el read-model, arranca la API en
+`:8000` y el frontend en `:3000`, y deja logs/PID en `.local/`.
 
-Mientras no haya backend configurado, las vistas muestran datos de ejemplo (`lib/mock.ts`) para poder desarrollar la UI de forma independiente.
+Para correr solo el frontend:
+
+```bash
+npm install
+cp .env.example .env.local     # BACKEND_URL=http://127.0.0.1:8000
+npm run dev
+```
+
+Abrí [http://localhost:3000](http://localhost:3000). Sin backend disponible las
+pantallas muestran un error claro con opción de reintentar.
+
+## Verificación
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+npm run check:responsive   # overflow horizontal + capturas (requiere Chrome)
+```
+
+`check:responsive` recorre las páginas y las tabs del dashboard a 320, 375, 768
+y 1280 px, y falla si alguna produce scroll horizontal. Las capturas quedan en
+el directorio temporal del sistema (`SHOTS_DIR` para cambiarlo).
 
 ## Learn More
 
