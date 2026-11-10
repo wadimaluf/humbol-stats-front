@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 const NAV_ITEMS = [
+  { href: "/partidos", label: "Partidos" },
   { href: "/partidos/nuevo", label: "Subir partido" },
-  { href: "/partidos/demo", label: "Partido de ejemplo" },
 ];
 
 export function SiteHeader() {

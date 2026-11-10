@@ -37,9 +37,18 @@ export default function Home() {
           computadora genera rendimiento físico por jugador: distancia,
           velocidad, sprints y mapas de calor.
         </p>
-        <Button size="lg" className="mt-2" render={<Link href="/partidos/nuevo" />}>
-          Subir un partido
-        </Button>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+          <Button size="lg" render={<Link href="/partidos/nuevo" />}>
+            Subir un partido
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            render={<Link href="/partidos" />}
+          >
+            Ver partidos
+          </Button>
+        </div>
       </div>
 
       <ol className="grid w-full gap-4 text-left sm:grid-cols-2 lg:grid-cols-4">
