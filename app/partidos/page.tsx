@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BackendError, getMatches } from "@/lib/api";
+import { EmptyState, ErrorState } from "@/components/app/data-states";
+import { getMatches } from "@/lib/api";
+import { describeBackendError } from "@/lib/errors";
 import type { MatchList, MatchSummary } from "@/lib/types";
 
 export const metadata = {
@@ -49,40 +50,23 @@ async function MatchesContent() {
   try {
     data = await getMatches();
   } catch (error) {
-    const detail =
-      error instanceof BackendError && error.status === 0
-        ? "La API no está configurada o no está disponible en este entorno."
-        : "La API respondió con un error al pedir la lista de partidos.";
     return (
-      <Alert variant="destructive">
-        <AlertTitle>No se pudieron cargar los partidos</AlertTitle>
-        <AlertDescription>
-          <p>{detail}</p>
-          <p>
-            Revisá que el backend esté corriendo y{" "}
-            <Link href="/partidos">volvé a intentar</Link>.
-          </p>
-        </AlertDescription>
-      </Alert>
+      <ErrorState
+        title="No se pudieron cargar los partidos"
+        description={describeBackendError(error, "la lista de partidos")}
+        retryHref="/partidos"
+      />
     );
   }
 
   if (data.items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
-        <p className="font-medium">Todavía no hay partidos procesados</p>
-        <p className="text-muted-foreground max-w-md text-sm">
-          Cuando el motor termine de procesar un video, el partido va a aparecer
-          acá con sus estadísticas.
-        </p>
-        <Button
-          className="mt-2"
-          variant="outline"
-          render={<Link href="/partidos/nuevo" />}
-        >
-          Subir un partido
-        </Button>
-      </div>
+      <EmptyState
+        title="Todavía no hay partidos procesados"
+        description="Cuando el motor termine de procesar un video, el partido va a aparecer acá con sus estadísticas."
+        actionHref="/partidos/nuevo"
+        actionLabel="Subir un partido"
+      />
     );
   }
 

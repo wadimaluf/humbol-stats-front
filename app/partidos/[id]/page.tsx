@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { StatsDashboard } from "@/components/app/stats-dashboard";
+import { ErrorState, PageSkeleton } from "@/components/app/data-states";
 import { BackendError, getMatch, getPlayerStats, getSprintEvents } from "@/lib/api";
+import { describeBackendError } from "@/lib/errors";
 import type { MatchDetail, PlayerStatsList, SprintList } from "@/lib/types";
 
 export default function MatchDashboardPage(props: PageProps<"/partidos/[id]">) {
@@ -31,7 +33,19 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
     if (error instanceof BackendError && error.status === 404) {
       notFound();
     }
-    throw error;
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
+        <MatchSteps matchId={id} current={2} />
+        <ErrorState
+          title="No se pudieron cargar las estadísticas"
+          description={describeBackendError(
+            error,
+            "las estadísticas del partido",
+          )}
+          retryHref={`/partidos/${id}`}
+        />
+      </div>
+    );
   }
 
   return (
@@ -61,7 +75,7 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
 
 function DashboardSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-10">
+    <PageSkeleton maxWidth="max-w-6xl">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-10 w-80" />
       <div className="flex flex-wrap gap-2">
@@ -69,6 +83,6 @@ function DashboardSkeleton() {
           <Skeleton key={i} className="h-24 flex-1 min-w-40" />
         ))}
       </div>
-    </div>
+    </PageSkeleton>
   );
 }

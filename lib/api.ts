@@ -61,7 +61,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const url = `${BACKEND_URL.replace(/\/$/, "")}${path}`;
-  const res = await fetch(url, { ...init });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init });
+  } catch {
+    throw new BackendError(
+      `No se pudo conectar con la API en ${url}`,
+      0,
+      "NETWORK_ERROR",
+    );
+  }
 
   if (!res.ok) {
     let code: string | null = null;

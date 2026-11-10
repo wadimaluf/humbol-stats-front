@@ -31,8 +31,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Alert } from "@/components/ui/alert";
 import { AssetImage } from "@/components/app/asset-image";
+import { EmptyState } from "@/components/app/data-states";
+import { describeSprintAvailability } from "@/lib/format";
 import type { PlayerStats, SprintEvent } from "@/lib/types";
 
 interface Props {
@@ -51,6 +52,15 @@ export function StatsDashboard({
   sprintsAvailable,
   sprintsReason,
 }: Props) {
+  if (stats.length === 0) {
+    return (
+      <EmptyState
+        title="Sin estadísticas para este partido"
+        description="El motor no generó estadísticas por jugador. Revisá la calibración de la cancha o volvé a procesar el video."
+      />
+    );
+  }
+
   return (
     <Tabs defaultValue="resumen" className="flex flex-col gap-4">
       <TabsList>
@@ -185,10 +195,15 @@ export function StatsDashboard({
 
       <TabsContent value="sprints">
         {!sprintsAvailable ? (
-          <Alert variant="destructive">
-            Sprints no disponibles para este partido.
-            {sprintsReason ? ` (${sprintsReason})` : ""}
-          </Alert>
+          <EmptyState
+            title="Sprints no disponibles"
+            description={describeSprintAvailability(sprintsReason)}
+          />
+        ) : sprints.length === 0 ? (
+          <EmptyState
+            title="No se detectaron sprints"
+            description="El partido está procesado, pero el motor no registró eventos de sprint."
+          />
         ) : (
           <SprintsTable sprints={sprints} matchId={matchId} />
         )}

@@ -11,7 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { RosterAssigner } from "@/components/app/roster-assigner";
 import { AssetImage } from "@/components/app/asset-image";
+import {
+  EmptyState,
+  ErrorState,
+  PageSkeleton,
+} from "@/components/app/data-states";
 import { BackendError, getRoster } from "@/lib/api";
+import { describeBackendError } from "@/lib/errors";
 import type { Roster } from "@/lib/types";
 
 export default function RosterPage(props: PageProps<"/partidos/[id]/roster">) {
@@ -32,7 +38,16 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
     if (error instanceof BackendError && error.status === 404) {
       notFound();
     }
-    throw error;
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
+        <MatchSteps matchId={id} current={1} />
+        <ErrorState
+          title="No se pudo cargar el roster"
+          description={describeBackendError(error, "el roster del partido")}
+          retryHref={`/partidos/${id}/roster`}
+        />
+      </div>
+    );
   }
 
   return (
@@ -70,14 +85,23 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
         </CardContent>
       </Card>
 
-      <RosterAssigner players={roster.players} teams={roster.teams} />
+      {roster.players.length > 0 ? (
+        <RosterAssigner players={roster.players} teams={roster.teams} />
+      ) : (
+        <EmptyState
+          title="No se detectaron jugadores"
+          description="El motor no encontró jugadores en este partido. Revisá la calibración de la cancha o volvé a procesar el video."
+          actionHref={`/partidos/${id}/cancha`}
+          actionLabel="Revisar la cancha"
+        />
+      )}
     </div>
   );
 }
 
 function RosterSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10">
+    <PageSkeleton maxWidth="max-w-5xl">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-10 w-56" />
       <Skeleton className="h-64 w-full" />
@@ -85,6 +109,6 @@ function RosterSkeleton() {
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
       </div>
-    </div>
+    </PageSkeleton>
   );
 }
