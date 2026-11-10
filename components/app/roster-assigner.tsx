@@ -371,7 +371,7 @@ function PlayerChip({
             className="h-full w-full object-cover rounded-md"
             fallback={
               <div
-                className="flex h-full w-full items-center justify-center rounded-md bg-gradient-to-br from-card via-muted/30 to-card"
+                className="flex h-full w-full items-center justify-center rounded-md rose-400"
               >
                 <span className="text-xs font-medium text-muted-foreground">
                   {initials}
