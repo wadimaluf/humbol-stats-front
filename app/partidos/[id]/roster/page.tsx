@@ -30,6 +30,7 @@ export default function RosterPage(props: PageProps<"/partidos/[id]/roster">) {
 
 async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const rosterImageUrl = `/v1/matches/${encodeURIComponent(id)}/assets/roster-image`;
 
   let roster: Roster;
   try {
@@ -73,7 +74,7 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
         </CardHeader>
         <CardContent>
           <AssetImage
-            src={`/v1/matches/${encodeURIComponent(id)}/assets/roster-image`}
+            src={rosterImageUrl}
             alt={`Galería de jugadores detectados en el partido ${id}`}
             className="mx-auto w-full max-w-3xl rounded-lg border"
             fallback={
@@ -86,7 +87,11 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
       </Card>
 
       {roster.players.length > 0 ? (
-        <RosterAssigner players={roster.players} teams={roster.teams} />
+        <RosterAssigner
+          players={roster.players}
+          teams={roster.teams}
+          rosterImageUrl={rosterImageUrl}
+        />
       ) : (
         <EmptyState
           title="No se detectaron jugadores"

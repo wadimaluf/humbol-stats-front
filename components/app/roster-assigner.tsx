@@ -21,6 +21,8 @@ type DropTarget = "A" | "B" | "unassigned" | null;
 interface Props {
   players: RosterEntry[];
   teams: Team[];
+  /** Contact sheet with the detected frame for each player. */
+  rosterImageUrl: string;
 }
 
 const TEAM_STYLES: Record<
@@ -51,12 +53,50 @@ const TEAM_STYLES: Record<
 
 const NOTICE_MS = 3200;
 
+/** The backend exposes one contact sheet (5x2 grid) instead of per-player
+ * photos. Every processed match uses the same 1650x810 layout, so each card
+ * can crop its cell with CSS and show the real detected frame.
+ */
+const ROSTER_SHEET = {
+  width: 1650,
+  height: 810,
+  cropWidth: 200,
+  cropHeight: 292,
+  centers: [190, 507.5, 824.5, 1142, 1459],
+  rowTops: [147, 494],
+  boxWidth: 56,
+  boxHeight: 82,
+} as const;
+
+function rosterFrameStyle(
+  playerId: string,
+  rosterImageUrl: string,
+): React.CSSProperties {
+  const number = Number.parseInt(playerId.replace(/\D/g, ""), 10);
+  const index = Number.isFinite(number) && number > 0 ? number - 1 : 0;
+  const column = index % 5;
+  const row = Math.floor(index / 5);
+  const left = ROSTER_SHEET.centers[column] - ROSTER_SHEET.cropWidth / 2;
+  const top = ROSTER_SHEET.rowTops[row] ?? ROSTER_SHEET.rowTops[0];
+
+  return {
+    backgroundImage: `url("${rosterImageUrl}")`,
+    backgroundSize: `${(ROSTER_SHEET.width / ROSTER_SHEET.cropWidth) * 100}% ${
+      (ROSTER_SHEET.height / ROSTER_SHEET.cropHeight) * 100
+    }%`,
+    backgroundPosition: `${
+      -(left / ROSTER_SHEET.cropWidth) * ROSTER_SHEET.boxWidth
+    }px ${-(top / ROSTER_SHEET.cropHeight) * ROSTER_SHEET.boxHeight}px`,
+    backgroundRepeat: "no-repeat",
+  };
+}
+
 /** Step 3 of the flow: drag auto-detected players into Team A / Team B.
  *
  * v1 is read-only: team names and player names are edited locally and are not
  * persisted to the backend. Persistence will be added in v2.
  */
-export function RosterAssigner({ players, teams }: Props) {
+export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
   const initialTeamNames = {
     A: teams.find((t) => t.id === "A")?.name ?? "",
     B: teams.find((t) => t.id === "B")?.name ?? "",
@@ -234,6 +274,7 @@ export function RosterAssigner({ players, teams }: Props) {
                       <PlayerChip
                         key={p.id}
                         entry={p}
+                        rosterImageUrl={rosterImageUrl}
                         onDragStart={setDraggingId}
                         onDragEnd={() => {
                           setDraggingId(null);
@@ -279,6 +320,7 @@ export function RosterAssigner({ players, teams }: Props) {
               <PlayerChip
                 key={p.id}
                 entry={p}
+                rosterImageUrl={rosterImageUrl}
                 onDragStart={setDraggingId}
                 onDragEnd={() => {
                   setDraggingId(null);
@@ -331,12 +373,14 @@ function TeamNameInput({
 
 function PlayerChip({
   entry,
+  rosterImageUrl,
   onDragStart,
   onDragEnd,
   onRename,
   onAssign,
 }: {
   entry: RosterEntry;
+  rosterImageUrl: string;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
   onRename: (id: string, name: string) => void;
@@ -347,50 +391,44 @@ function PlayerChip({
       ? TEAM_STYLES[entry.teamId].badge
       : undefined;
 
-  const initials =
-    entry.displayName?.split(" ").reduce((acc, word) => acc + word[0], "") ?? entry.id.slice(0, 2).toUpperCase();
-
   return (
     <div
       className="group flex w-24 cursor-grab flex-col items-center gap-1 rounded-lg border bg-card p-2 shadow-sm transition-transform hover:scale-105 active:cursor-grabbing"
       title={`El nombre de ${entry.id} es editable y la foto se arrastra a un equipo`}
     >
-      {/* Backend asset: roster.csv/png gallery photo. Thumbnail doubles as
-          the drag handle so the name input stays clickable. */}
+      {/* The backend exposes one contact sheet instead of per-player photos.
+          Crop the matching cell so the card shows the real detected frame. */}
       <div className="relative">
         <div
           draggable
           onDragStart={() => onDragStart(entry.id)}
           onDragEnd={onDragEnd}
-          className="h-14 w-14 cursor-grab touch-none overflow-hidden rounded-md bg-muted active:cursor-grabbing"
+          className="h-[82px] w-14 cursor-grab touch-none overflow-hidden rounded-md bg-muted active:cursor-grabbing"
           aria-hidden
         >
-          <AssetImage
-            src={entry.thumbnailUrl}
-            alt=""
-            className="h-full w-full object-cover rounded-md"
-            fallback={
+          {entry.thumbnailUrl ? (
+            <AssetImage
+              src={entry.thumbnailUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="relative h-full w-full">
+              <span className="text-muted-foreground absolute inset-0 flex items-center justify-center text-[0.65rem] font-medium">
+                {entry.id}
+              </span>
               <div
-                className="flex h-full w-full items-center justify-center rounded-md rose-400"
-              >
-                <span className="text-xs font-medium text-muted-foreground">
-                  {initials}
-                </span>
-              </div>
-            }
-          />
+                className="absolute inset-0"
+                style={rosterFrameStyle(entry.id, rosterImageUrl)}
+              />
+            </div>
+          )}
         </div>
         <PencilIcon
           className="absolute -right-1.5 -top-1.5 size-4 rounded-full border bg-card p-0.5 text-muted-foreground opacity-60 shadow-xs transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
           aria-hidden
         />
       </div>
-      {entry.displayName != null && (
-        <span className="text-xs font-medium text-capitalize truncate">{entry.displayName}</span>
-      )}
-      {entry.displayName == null && (
-        <span className="text-xs font-medium text-muted-foreground truncate">{entry.id}</span>
-      )}
       <Badge variant="secondary" className={teamBadge ?? undefined}>
         {entry.id}
       </Badge>
