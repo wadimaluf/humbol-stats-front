@@ -7,7 +7,14 @@ import type {
   Calibration,
   MatchDetail,
   MatchList,
+  MatchV2,
+  CreateMatchInput,
+  UpdateCalibrationInput,
+  AddVideoInput,
+  AddLandmarkInput,
   PlayerStatsList,
+  PlayerStatV2,
+  UpsertStatsInput,
   Roster,
   SprintList,
 } from "./types";
@@ -179,3 +186,71 @@ export function getHeatmaps(matchId: string) {
 }
 
 export { BackendError };
+
+// ──────────────────────────────────────────────────────────────────────
+// V2 Database-backed API functions
+// ──────────────────────────────────────────────────────────────────────
+
+/** Create a new match in the database. */
+export function createMatch(input: CreateMatchInput) {
+  return request<{ match_id: string; status: string }>("/v2/matches", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+/** Get a match from the database (V2). */
+export function getMatchV2(matchId: string) {
+  return request<MatchV2>(
+    `/v2/matches/${encodeURIComponent(matchId)}`,
+  );
+}
+
+/** Update calibration data for a match. */
+export function updateCalibration(matchId: string, input: UpdateCalibrationInput) {
+  return request<{ match_id: string; status: string }>(
+    `/v2/matches/${encodeURIComponent(matchId)}/calibration`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** Add a video to a match. */
+export function addVideo(matchId: string, input: AddVideoInput) {
+  return request<{ id: number; name: string; path: string; frames: number }>(
+    `/v2/matches/${encodeURIComponent(matchId)}/videos`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** Add a landmark to a match. */
+export function addLandmark(matchId: string, input: AddLandmarkInput) {
+  return request<{ id: number; landmark_id: string }>(
+    `/v2/matches/${encodeURIComponent(matchId)}/landmarks`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** Upsert player statistics for a match. */
+export function upsertPlayerStats(matchId: string, stats: UpsertStatsInput[]) {
+  return request<{ match_id: string; status: string; count: number }>(
+    `/v2/matches/${encodeURIComponent(matchId)}/stats`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(stats),
+    },
+  );
+}
