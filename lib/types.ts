@@ -234,8 +234,12 @@ export interface MatchV2 {
   roi: any | null;
   trim_start_sec: number | null;
   trim_end_sec_in_last: number | null;
+  /** Reference-only link for clip deep links; never processed as a source. */
+  youtube_url: string | null;
+  youtube_match_start_sec: number | null;
   created_at: string;
   videos: MatchVideo[];
+  sources: VideoSource[];
 }
 
 export interface MatchVideo {
@@ -297,4 +301,41 @@ export interface UpsertStatsInput {
   max_speed_mps?: number;
   sprints?: number;
   peak_1min_distance_m?: number;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Video sources (no raw video storage; YouTube is reference-only)
+// ──────────────────────────────────────────────────────────────────────
+
+export type VideoSourceProvider = "gdrive" | "local";
+
+export interface VideoSource {
+  id: number;
+  provider: VideoSourceProvider;
+  /** Drive file id, or the local path */
+  external_id: string;
+  location: string;
+  /** Second inside the video where the match starts */
+  start_sec: number;
+  duration_sec: number | null;
+  size_bytes: number | null;
+  title: string | null;
+  mime_type: string | null;
+  checksum: string | null;
+  status: "registered" | "validated";
+  validation_note: string | null;
+}
+
+export interface AddVideoSourceInput {
+  provider: VideoSourceProvider;
+  location: string;
+  start_sec?: number;
+}
+
+export interface YouTubeLink {
+  match_id: string;
+  youtube_url: string;
+  youtube_match_start_sec: number;
+  title: string | null;
+  status: string;
 }
