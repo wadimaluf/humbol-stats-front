@@ -239,6 +239,7 @@ export interface MatchV2 {
 }
 
 export interface MatchVideo {
+  id: number;
   name: string;
   path: string;
   frames: number;
