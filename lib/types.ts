@@ -218,3 +218,83 @@ export type MatchUploadInput = {
 };
 
 export type MatchUploadResponse = MatchSummary;
+
+// ──────────────────────────────────────────────────────────────────────
+// V2 Database-backed types
+// ──────────────────────────────────────────────────────────────────────
+
+export interface MatchV2 {
+  match_id: string;
+  fps: number;
+  expected_players: number;
+  substitutions: boolean;
+  calibration_status: string;
+  calibration_note: string | null;
+  homography: any | null;
+  roi: any | null;
+  trim_start_sec: number | null;
+  trim_end_sec_in_last: number | null;
+  created_at: string;
+  videos: MatchVideo[];
+}
+
+export interface MatchVideo {
+  id: number;
+  name: string;
+  path: string;
+  frames: number;
+}
+
+export interface CreateMatchInput {
+  match_id: string;
+  fps?: number;
+  expected_players?: number;
+  substitutions?: boolean;
+}
+
+export interface UpdateCalibrationInput {
+  homography?: any;
+  roi?: any;
+  status?: string;
+  note?: string;
+}
+
+export interface AddVideoInput {
+  name: string;
+  path: string;
+  frames?: number;
+}
+
+export interface AddLandmarkInput {
+  landmark_id: string;
+  img_px: [number, number];
+  metric_m: [number, number];
+}
+
+export interface PlayerStatV2 {
+  player_id: string;
+  name: string | null;
+  team: string | null;
+  visible_seconds: number;
+  distance_m: number;
+  distance_per_min_m: number;
+  avg_speed_mps: number;
+  p95_speed_mps: number;
+  max_speed_mps: number;
+  sprints: number;
+  peak_1min_distance_m: number;
+}
+
+export interface UpsertStatsInput {
+  player_id: string;
+  name?: string;
+  team?: string;
+  visible_seconds?: number;
+  distance_m?: number;
+  distance_per_min_m?: number;
+  avg_speed_mps?: number;
+  p95_speed_mps?: number;
+  max_speed_mps?: number;
+  sprints?: number;
+  peak_1min_distance_m?: number;
+}
