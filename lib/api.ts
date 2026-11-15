@@ -16,8 +16,8 @@ import type {
   MatchVideoSource,
   YouTubeLink,
   PlayerStatsList,
-  PlayerStatV2,
-  UpsertStatsInput,
+  RosterEntry,
+  UpdatePlayerInput,
   Roster,
   SprintList,
 } from "./types";
@@ -263,14 +263,22 @@ export function addLandmark(matchId: string, input: AddLandmarkInput) {
   );
 }
 
-/** Upsert player statistics for a match. */
-export function upsertPlayerStats(matchId: string, stats: UpsertStatsInput[]) {
-  return request<{ match_id: string; status: string; count: number }>(
-    `/v2/matches/${encodeURIComponent(matchId)}/stats`,
+/**
+ * Edit operator-owned player fields. Omitted keys are left untouched and
+ * survive read-model re-ingests from Kaggle. Works for roster-only players
+ * (substitutes) as well, so the response is the roster entry shape.
+ */
+export function updatePlayer(
+  matchId: string,
+  playerId: string,
+  input: UpdatePlayerInput,
+) {
+  return request<RosterEntry>(
+    `/v2/matches/${encodeURIComponent(matchId)}/players/${encodeURIComponent(playerId)}`,
     {
-      method: "POST",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(stats),
+      body: JSON.stringify(input),
     },
   );
 }

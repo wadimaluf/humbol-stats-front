@@ -275,32 +275,10 @@ export interface AddLandmarkInput {
   metric_m: [number, number];
 }
 
-export interface PlayerStatV2 {
-  player_id: string;
-  name: string | null;
-  team: string | null;
-  visible_seconds: number;
-  distance_m: number;
-  distance_per_min_m: number;
-  avg_speed_mps: number;
-  p95_speed_mps: number;
-  max_speed_mps: number;
-  sprints: number;
-  peak_1min_distance_m: number;
-}
-
-export interface UpsertStatsInput {
-  player_id: string;
-  name?: string;
-  team?: string;
-  visible_seconds?: number;
-  distance_m?: number;
-  distance_per_min_m?: number;
-  avg_speed_mps?: number;
-  p95_speed_mps?: number;
-  max_speed_mps?: number;
-  sprints?: number;
-  peak_1min_distance_m?: number;
+export interface UpdatePlayerInput {
+  /** Omit to leave unchanged; null clears the value. */
+  display_name?: string | null;
+  team_id?: string | null;
 }
 
 // ──────────────────────────────────────────────────────────────────────
