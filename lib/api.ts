@@ -13,7 +13,7 @@ import type {
   AddVideoInput,
   AddLandmarkInput,
   AddVideoSourceInput,
-  VideoSource,
+  MatchVideoSource,
   YouTubeLink,
   PlayerStatsList,
   PlayerStatV2,
@@ -45,7 +45,12 @@ function readProblemFields(body: unknown): ProblemFields {
       : root;
   return {
     code: typeof nested.code === "string" ? nested.code : null,
-    detail: typeof nested.detail === "string" ? nested.detail : undefined,
+    detail:
+      typeof nested.detail === "string"
+        ? nested.detail
+        : Array.isArray(nested.detail)
+          ? (nested.detail[0] as { msg?: string } | undefined)?.msg
+          : undefined,
   };
 }
 
@@ -109,7 +114,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** For endpoints that answer 204 No Content (deletes). */
 async function requestVoid(path: string, init?: RequestInit): Promise<void> {
-  await send(path, init);
+  const res = await send(path, init);
+  // Release the socket if a proxy rewrote 204 into 200 with a body.
+  await res.body?.cancel();
 }
 
 /** JSON endpoints used by the dashboard views. */
@@ -274,7 +281,7 @@ export function upsertPlayerStats(matchId: string, stats: UpsertStatsInput[]) {
 
 /** Register (or refresh) a user-owned video source. */
 export function addVideoSource(matchId: string, input: AddVideoSourceInput) {
-  return request<VideoSource>(
+  return request<MatchVideoSource>(
     `/v2/matches/${encodeURIComponent(matchId)}/sources`,
     {
       method: "POST",
@@ -286,7 +293,7 @@ export function addVideoSource(matchId: string, input: AddVideoSourceInput) {
 
 /** List the registered sources for a match. */
 export function listVideoSources(matchId: string) {
-  return request<VideoSource[]>(
+  return request<MatchVideoSource[]>(
     `/v2/matches/${encodeURIComponent(matchId)}/sources`,
   );
 }

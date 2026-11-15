@@ -239,7 +239,7 @@ export interface MatchV2 {
   youtube_match_start_sec: number | null;
   created_at: string;
   videos: MatchVideo[];
-  sources: VideoSource[];
+  sources: MatchVideoSource[];
 }
 
 export interface MatchVideo {
@@ -309,7 +309,7 @@ export interface UpsertStatsInput {
 
 export type VideoSourceProvider = "gdrive" | "local";
 
-export interface VideoSource {
+export interface MatchVideoSource {
   id: number;
   provider: VideoSourceProvider;
   /** Drive file id, or the local path */
@@ -337,5 +337,5 @@ export interface YouTubeLink {
   youtube_url: string;
   youtube_match_start_sec: number;
   title: string | null;
-  status: string;
+  status: "validated";
 }
