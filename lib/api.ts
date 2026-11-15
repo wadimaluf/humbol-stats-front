@@ -12,6 +12,9 @@ import type {
   UpdateCalibrationInput,
   AddVideoInput,
   AddLandmarkInput,
+  AddVideoSourceInput,
+  MatchVideoSource,
+  YouTubeLink,
   PlayerStatsList,
   PlayerStatV2,
   UpsertStatsInput,
@@ -42,7 +45,12 @@ function readProblemFields(body: unknown): ProblemFields {
       : root;
   return {
     code: typeof nested.code === "string" ? nested.code : null,
-    detail: typeof nested.detail === "string" ? nested.detail : undefined,
+    detail:
+      typeof nested.detail === "string"
+        ? nested.detail
+        : Array.isArray(nested.detail)
+          ? (nested.detail[0] as { msg?: string } | undefined)?.msg
+          : undefined,
   };
 }
 
@@ -58,7 +66,7 @@ class BackendError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, init?: RequestInit): Promise<Response> {
   if (!isBackendConfigured()) {
     throw new BackendError(
       "BACKEND_URL no está configurado en el entorno",
@@ -96,7 +104,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
 
-  return (await res.json()) as Promise<T>;
+  return res;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init);
+  return (await res.json()) as T;
+}
+
+/** For endpoints that answer 204 No Content (deletes). */
+async function requestVoid(path: string, init?: RequestInit): Promise<void> {
+  const res = await send(path, init);
+  // Release the socket if a proxy rewrote 204 into 200 with a body.
+  await res.body?.cancel();
 }
 
 /** JSON endpoints used by the dashboard views. */
@@ -253,4 +273,58 @@ export function upsertPlayerStats(matchId: string, stats: UpsertStatsInput[]) {
       body: JSON.stringify(stats),
     },
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Video sources: register a Drive/local source; never upload raw video
+// ──────────────────────────────────────────────────────────────────────
+
+/** Register (or refresh) a user-owned video source. */
+export function addVideoSource(matchId: string, input: AddVideoSourceInput) {
+  return request<MatchVideoSource>(
+    `/v2/matches/${encodeURIComponent(matchId)}/sources`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** List the registered sources for a match. */
+export function listVideoSources(matchId: string) {
+  return request<MatchVideoSource[]>(
+    `/v2/matches/${encodeURIComponent(matchId)}/sources`,
+  );
+}
+
+/** Remove a registered source (the video itself is untouched). */
+export function removeVideoSource(matchId: string, sourceId: number) {
+  return requestVoid(
+    `/v2/matches/${encodeURIComponent(matchId)}/sources/${sourceId}`,
+    { method: "DELETE" },
+  );
+}
+
+/** Attach a YouTube reference link for clip deep links (never processed). */
+export function setYouTubeLink(
+  matchId: string,
+  url: string,
+  matchStartSec = 0,
+) {
+  return request<YouTubeLink>(
+    `/v2/matches/${encodeURIComponent(matchId)}/youtube`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, match_start_sec: matchStartSec }),
+    },
+  );
+}
+
+/** Remove the YouTube reference link from a match. */
+export function clearYouTubeLink(matchId: string) {
+  return requestVoid(`/v2/matches/${encodeURIComponent(matchId)}/youtube`, {
+    method: "DELETE",
+  });
 }
