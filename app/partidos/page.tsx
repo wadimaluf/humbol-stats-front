@@ -13,14 +13,28 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/app/data-states";
-import { getMatches } from "@/lib/api";
+import { BackendError, getMatchReadModel, listMatchesV2 } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
-import type { MatchList, MatchSummary } from "@/lib/types";
+import { formatMatchDate } from "@/lib/format";
+import type { MatchV2 } from "@/lib/types";
 
 export const metadata = {
   title: "Partidos | Humbol Stats",
-  description: "Partidos procesados y sus estadísticas",
+  description: "Partidos cargados y sus estadísticas",
 };
+
+interface MatchCardData {
+  matchId: string;
+  title: string;
+  /** Display date (already formatted) or the raw match id. */
+  date: string;
+  status: string;
+  playerCount: number;
+  durationSec: number;
+  hasSprintEvents: boolean;
+  /** processed = has read-model; pending = registered only; error = read failed. */
+  state: "processed" | "pending" | "error";
+}
 
 export default function MatchesPage() {
   return (
@@ -29,7 +43,7 @@ export default function MatchesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Partidos</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Partidos procesados por el motor. Elegí uno para ver estadísticas,
+            Partidos cargados y procesados. Elegí uno para ver estadísticas,
             roster y cancha.
           </p>
         </div>
@@ -49,9 +63,10 @@ export default function MatchesPage() {
 }
 
 async function MatchesContent() {
-  let data: MatchList;
+  let matches: MatchV2[];
   try {
-    data = await getMatches();
+    // Bounded page size: each card needs its read-model for the aggregates.
+    matches = await listMatchesV2(30);
   } catch (error) {
     return (
       <ErrorState
@@ -62,20 +77,59 @@ async function MatchesContent() {
     );
   }
 
-  if (data.items.length === 0) {
+  if (matches.length === 0) {
     return (
       <EmptyState
-        title="Todavía no hay partidos procesados"
-        description="Cuando el motor termine de procesar un video, el partido va a aparecer acá con sus estadísticas."
+        title="Todavía no hay partidos"
+        description="Cargá el primero con un link de Google Drive. Cuando el motor termine de procesarlo, va a aparecer acá con sus estadísticas."
         actionHref="/partidos/nuevo"
         actionLabel="Cargar un partido"
       />
     );
   }
 
+  const cards = await Promise.all(
+    matches.map(async (match) => {
+      const base = {
+        matchId: match.match_id,
+        title: `Partido ${match.match_id}`,
+        date: formatMatchDate(match.match_id),
+        status: "pending",
+        playerCount: 0,
+        durationSec: 0,
+        hasSprintEvents: false,
+      };
+      try {
+        const readModel = await getMatchReadModel(match.match_id);
+        const sprintEvents = readModel.match.quality?.sprintEvents;
+        return {
+          ...base,
+          title: readModel.match.title || base.title,
+          date: formatMatchDate(readModel.match.date || match.match_id),
+          status: readModel.match.status,
+          playerCount: readModel.players.length,
+          durationSec: readModel.match.durationSec ?? 0,
+          hasSprintEvents:
+            sprintEvents?.available ?? readModel.match.hasSprintEvents,
+          state: "processed",
+        } satisfies MatchCardData;
+      } catch (error) {
+        // 404 = registered but not processed yet. Anything else is a real
+        // failure and must not be disguised as "pending".
+        return {
+          ...base,
+          state:
+            error instanceof BackendError && error.status === 404
+              ? "pending"
+              : "error",
+        } satisfies MatchCardData;
+      }
+    }),
+  );
+
   return (
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {data.items.map((match) => (
+      {cards.map((match) => (
         <li key={match.matchId}>
           <MatchCard match={match} />
         </li>
@@ -84,10 +138,18 @@ async function MatchesContent() {
   );
 }
 
-function MatchCard({ match }: { match: MatchSummary }) {
+function MatchCard({ match }: { match: MatchCardData }) {
+  const processed = match.state === "processed";
+  const failed = match.state === "error";
+  const href = processed
+    ? `/partidos/${match.matchId}`
+    : failed
+      ? `/partidos/${match.matchId}`
+      : `/partidos/${match.matchId}/carga`;
+
   return (
     <Link
-      href={`/partidos/${match.matchId}`}
+      href={href}
       className="group block h-full rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Card className="h-full transition-shadow group-hover:shadow-sm group-hover:ring-foreground/20">
@@ -95,26 +157,46 @@ function MatchCard({ match }: { match: MatchSummary }) {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <CardTitle>{match.title}</CardTitle>
-              <CardDescription>{formatMatchDate(match.date)}</CardDescription>
+              <CardDescription>{match.date}</CardDescription>
             </div>
-            <Badge variant={statusVariant(match.status)}>
-              {statusLabel(match.status)}
+            <Badge
+              variant={failed ? "destructive" : statusVariant(match.status)}
+            >
+              {failed ? "Error de lectura" : statusLabel(match.status)}
             </Badge>
           </div>
         </CardHeader>
 
         <CardContent className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span>{match.playerCount} jugadores</span>
-          <span aria-hidden>·</span>
-          <span>~{Math.round(match.durationSec / 60)} min</span>
+          {processed ? (
+            <>
+              <span>{match.playerCount} jugadores</span>
+              <span aria-hidden>·</span>
+              <span>~{Math.round(match.durationSec / 60)} min</span>
+            </>
+          ) : failed ? (
+            <span>No pudimos leer las estadísticas de este partido</span>
+          ) : (
+            <span>Cargado, esperando procesamiento</span>
+          )}
         </CardContent>
 
         <CardFooter className="justify-between">
-          <Badge variant={match.hasSprintEvents ? "secondary" : "outline"}>
-            {match.hasSprintEvents ? "Con sprints" : "Sin sprints"}
-          </Badge>
+          {processed ? (
+            <Badge variant={match.hasSprintEvents ? "secondary" : "outline"}>
+              {match.hasSprintEvents ? "Con sprints" : "Sin sprints"}
+            </Badge>
+          ) : failed ? (
+            <Badge variant="destructive">Lectura fallida</Badge>
+          ) : (
+            <Badge variant="outline">Sin procesar</Badge>
+          )}
           <span className="text-primary inline-flex items-center gap-1 font-medium">
-            Ver estadísticas
+            {processed
+              ? "Ver estadísticas"
+              : failed
+                ? "Reintentar"
+                : "Ver estado de la carga"}
             <span aria-hidden>→</span>
           </span>
         </CardFooter>
@@ -133,30 +215,6 @@ function MatchesSkeleton() {
   );
 }
 
-const MONTHS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-];
-
-/** Format `YYYY-MM-DD` without timezone shifts. */
-function formatMatchDate(isoDate: string) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  if (!year || !month || !day || month < 1 || month > 12) {
-    return isoDate;
-  }
-  return `${day} ${MONTHS[month - 1]} ${year}`;
-}
-
 function statusLabel(status: string) {
   switch (status) {
     case "completed":
@@ -165,6 +223,8 @@ function statusLabel(status: string) {
       return "Procesando";
     case "needs_calibration":
       return "Revisar cancha";
+    case "pending":
+      return "Pendiente";
     case "failed":
       return "Falló";
     default:
@@ -182,6 +242,7 @@ function statusVariant(
       return "destructive";
     case "processing":
     case "needs_calibration":
+    case "pending":
       return "outline";
     default:
       return "secondary";

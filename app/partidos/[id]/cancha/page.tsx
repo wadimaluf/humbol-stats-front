@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { AssetImage } from "@/components/app/asset-image";
 import { ErrorState, PageSkeleton } from "@/components/app/data-states";
-import { BackendError, getCalibration } from "@/lib/api";
+import { BackendError, getMatchReadModel } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import { describeCalibrationLabel } from "@/lib/format";
 import type { Calibration } from "@/lib/types";
@@ -31,7 +31,7 @@ async function CourtContent({ params }: { params: Promise<{ id: string }> }) {
 
   let calibration: Calibration;
   try {
-    calibration = await getCalibration(id);
+    calibration = (await getMatchReadModel(id)).calibration;
   } catch (error) {
     if (error instanceof BackendError && error.status === 404) {
       notFound();

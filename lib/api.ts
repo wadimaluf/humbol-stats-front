@@ -1,25 +1,20 @@
-// Thin client for the Marito-stats backend API v1.
+// Thin client for the Marito-stats backend API (v2, database-backed).
 // The base URL is provided via BACKEND_URL (see .env.example).
-// All endpoints return JSON typed according to the OpenAPI contract
-// (see /Users/mariano/Dev/integration/openapi.yaml).
+// Reads use the normalized read-model served by /v2/matches/{id}/read-model.
 
 import type {
-  Calibration,
-  MatchDetail,
-  MatchList,
-  MatchV2,
   CreateMatchInput,
   UpdateCalibrationInput,
   AddVideoInput,
   AddLandmarkInput,
   AddVideoSourceInput,
+  MatchReadModel,
+  MatchReadModelDocument,
+  MatchV2,
   MatchVideoSource,
   YouTubeLink,
-  PlayerStatsList,
   RosterEntry,
   UpdatePlayerInput,
-  Roster,
-  SprintList,
 } from "./types";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "";
@@ -119,92 +114,6 @@ async function requestVoid(path: string, init?: RequestInit): Promise<void> {
   await res.body?.cancel();
 }
 
-/** JSON endpoints used by the dashboard views. */
-
-export function getMatches(limit?: number, cursor?: string) {
-  const params = new URLSearchParams();
-  if (limit) params.set("limit", String(limit));
-  if (cursor) params.set("cursor", cursor);
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  return request<MatchList>(`/v1/matches${qs}`);
-}
-
-export function getMatch(matchId: string) {
-  return request<MatchDetail>(
-    `/v1/matches/${encodeURIComponent(matchId)}`,
-  );
-}
-
-export function getPlayerStats(matchId: string) {
-  return request<PlayerStatsList>(
-    `/v1/matches/${encodeURIComponent(matchId)}/stats`,
-  );
-}
-
-export function getSprintEvents(
-  matchId: string,
-  playerId?: string,
-  limit?: number,
-  cursor?: string,
-) {
-  const params = new URLSearchParams();
-  if (playerId) params.set("playerId", playerId);
-  if (limit) params.set("limit", String(limit));
-  if (cursor) params.set("cursor", cursor);
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  return request<SprintList>(
-    `/v1/matches/${encodeURIComponent(matchId)}/sprints${qs}`,
-  );
-}
-
-/**
- * Fetch every sprint event for a match by following `nextCursor`.
- * The API paginates (50 by default), so a single request can silently
- * truncate matches with many events.
- */
-export async function getAllSprintEvents(
-  matchId: string,
-  pageSize = 200,
-): Promise<SprintList> {
-  const first = await getSprintEvents(matchId, undefined, pageSize);
-  if (!first.nextCursor) {
-    return first;
-  }
-
-  const items = [...first.items];
-  const seen = new Set<string>();
-  let cursor: string | null = first.nextCursor;
-
-  while (cursor && !seen.has(cursor)) {
-    seen.add(cursor);
-    const page = await getSprintEvents(matchId, undefined, pageSize, cursor);
-    items.push(...page.items);
-    cursor = page.nextCursor;
-  }
-
-  return { ...first, items, nextCursor: null };
-}
-
-export function getRoster(matchId: string) {
-  return request<Roster>(
-    `/v1/matches/${encodeURIComponent(matchId)}/roster`,
-  );
-}
-
-export function getCalibration(matchId: string) {
-  return request<Calibration>(
-    `/v1/matches/${encodeURIComponent(matchId)}/calibration`,
-  );
-}
-
-export function getHeatmaps(matchId: string) {
-  return request<{
-    matchId: string;
-    globalUrl: string | null;
-    players: Array<{ playerId: string; url: string | null }>;
-  }>(`/v1/matches/${encodeURIComponent(matchId)}/heatmaps`);
-}
-
 export { BackendError };
 
 // ──────────────────────────────────────────────────────────────────────
@@ -225,6 +134,34 @@ export function getMatchV2(matchId: string) {
   return request<MatchV2>(
     `/v2/matches/${encodeURIComponent(matchId)}`,
   );
+}
+
+/** List v2 matches newest-first (`match_id` is a YYYYMMDD date). */
+export function listMatchesV2(limit = 24, offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return request<MatchV2[]>(`/v2/matches?${params.toString()}`);
+}
+
+/**
+ * Fetch the normalized read-model (players, roster, sprints, calibration)
+ * recombined into the same camelCase shape the v1 views already consume.
+ */
+export async function getMatchReadModel(
+  matchId: string,
+): Promise<MatchReadModel> {
+  const doc = await request<MatchReadModelDocument>(
+    `/v2/matches/${encodeURIComponent(matchId)}/read-model`,
+  );
+  return {
+    match: doc,
+    players: doc._players,
+    roster: doc._roster,
+    sprints: doc._sprints,
+    calibration: doc._calibration,
+  };
 }
 
 /** Update calibration data for a match. */
