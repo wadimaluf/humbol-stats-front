@@ -37,7 +37,7 @@ export default function MatchesPage() {
           nativeButton={false}
           render={<Link href="/partidos/nuevo" />}
         >
-          Subir un partido
+          Cargar un partido
         </Button>
       </div>
 
@@ -68,7 +68,7 @@ async function MatchesContent() {
         title="Todavía no hay partidos procesados"
         description="Cuando el motor termine de procesar un video, el partido va a aparecer acá con sus estadísticas."
         actionHref="/partidos/nuevo"
-        actionLabel="Subir un partido"
+        actionLabel="Cargar un partido"
       />
     );
   }
