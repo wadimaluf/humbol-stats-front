@@ -16,7 +16,7 @@ import {
   ErrorState,
   PageSkeleton,
 } from "@/components/app/data-states";
-import { BackendError, getRoster } from "@/lib/api";
+import { BackendError, getMatchReadModel } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import type { Roster } from "@/lib/types";
 
@@ -34,7 +34,12 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
 
   let roster: Roster;
   try {
-    roster = await getRoster(id);
+    const readModel = await getMatchReadModel(id);
+    roster = {
+      matchId: id,
+      teams: readModel.match.teams,
+      players: readModel.roster,
+    };
   } catch (error) {
     if (error instanceof BackendError && error.status === 404) {
       notFound();

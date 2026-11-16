@@ -30,3 +30,38 @@ export function describeCalibrationLabel(
   }
   return `Pendiente de revisión (${CALIBRATION_STATUS_LABELS[status] ?? status})`;
 }
+
+const MONTHS = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+/**
+ * Format `YYYY-MM-DD` or `YYYYMMDD` without timezone shifts. Returns the raw
+ * value when it is not a date (match ids can carry a free-form suffix).
+ */
+export function formatMatchDate(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : /^\d{8}$/.test(digits) && value.startsWith(digits.slice(0, 4))
+      ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
+      : null;
+  if (!iso) return value;
+
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day || month < 1 || month > 12) {
+    return value;
+  }
+  return `${day} ${MONTHS[month - 1]} ${year}`;
+}

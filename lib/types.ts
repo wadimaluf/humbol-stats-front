@@ -210,15 +210,6 @@ export interface MatchDetail extends MatchSummary {
   links: MatchLinks;
 }
 
-export type MatchUploadInput = {
-  videoFile?: File;
-  youtubeUrl?: string;
-  /** Where the match starts inside the video, "mm:ss" */
-  kickoffTimestamp: string;
-};
-
-export type MatchUploadResponse = MatchSummary;
-
 // ──────────────────────────────────────────────────────────────────────
 // V2 Database-backed types
 // ──────────────────────────────────────────────────────────────────────
@@ -279,6 +270,27 @@ export interface UpdatePlayerInput {
   /** Omit to leave unchanged; null clears the value. */
   display_name?: string | null;
   team_id?: string | null;
+}
+
+/**
+ * Full camelCase read-model document served by
+ * `GET /v2/matches/{id}/read-model` (same shape as `match_model.json`).
+ * The underscore-prefixed arrays hold the per-player, roster and sprint rows.
+ */
+export interface MatchReadModelDocument extends MatchDetail {
+  _players: PlayerStats[];
+  _roster: RosterEntry[];
+  _sprints: SprintEvent[];
+  _calibration: Calibration;
+}
+
+/** Read-model document split into the pieces the pages consume. */
+export interface MatchReadModel {
+  match: MatchDetail;
+  players: PlayerStats[];
+  roster: RosterEntry[];
+  sprints: SprintEvent[];
+  calibration: Calibration;
 }
 
 // ──────────────────────────────────────────────────────────────────────
