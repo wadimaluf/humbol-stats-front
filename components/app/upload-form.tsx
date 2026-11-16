@@ -107,7 +107,7 @@ export function UploadForm({ defaultMatchId }: { defaultMatchId: string }) {
             <Input
               id="matchId"
               required
-              pattern="[A-Za-z0-9_-]+"
+              pattern="[A-Za-z0-9_\-]+"
               value={matchId}
               onChange={(e) => setMatchId(e.target.value)}
               disabled={submitting}
