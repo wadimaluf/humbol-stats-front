@@ -230,8 +230,8 @@ export interface MatchV2 {
   substitutions: boolean;
   calibration_status: string;
   calibration_note: string | null;
-  homography: any | null;
-  roi: any | null;
+  homography: unknown | null;
+  roi: unknown | null;
   trim_start_sec: number | null;
   trim_end_sec_in_last: number | null;
   /** Reference-only link for clip deep links; never processed as a source. */
@@ -257,8 +257,8 @@ export interface CreateMatchInput {
 }
 
 export interface UpdateCalibrationInput {
-  homography?: any;
-  roi?: any;
+  homography?: unknown;
+  roi?: unknown;
   status?: string;
   note?: string;
 }

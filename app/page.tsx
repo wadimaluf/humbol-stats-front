@@ -5,8 +5,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 const FLOW = [
   {
     step: "1",
-    title: "Subir partido",
-    description: "MP4 o link de YouTube, con la marca de kickoff dentro del video.",
+    title: "Cargar partido",
+    description: "Link de Google Drive y el minuto de kickoff dentro del video.",
   },
   {
     step: "2",
@@ -33,9 +33,10 @@ export default function Home() {
           Estadísticas de tu partido, <span className="text-primary">automáticas</span>
         </h1>
         <p className="text-muted-foreground max-w-xl text-lg">
-          Subí el video de tu partido de fútbol 5/6 y el motor de visión por
-          computadora genera rendimiento físico por jugador: distancia,
-          velocidad, sprints y mapas de calor.
+          Compartí el video de tu partido de fútbol 5/6 desde Google Drive y el
+          motor de visión por computadora genera rendimiento físico por jugador:
+          distancia, velocidad, sprints y mapas de calor. No tenés que subir el
+          archivo.
         </p>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
           <Button
@@ -43,7 +44,7 @@ export default function Home() {
             nativeButton={false}
             render={<Link href="/partidos/nuevo" />}
           >
-            Subir un partido
+            Cargar un partido
           </Button>
           <Button
             size="lg"
