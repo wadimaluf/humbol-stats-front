@@ -23,6 +23,8 @@ interface Props {
   teams: Team[];
   /** Contact sheet with the detected frame for each player. */
   rosterImageUrl: string;
+  /** Match ID for save endpoint. */
+  matchId: string;
 }
 
 const TEAM_STYLES: Record<
@@ -93,20 +95,35 @@ function rosterFrameStyle(
 
 /** Step 3 of the flow: drag auto-detected players into Team A / Team B.
  *
- * v1 is read-only: team names and player names are edited locally and are not
- * persisted to the backend. Persistence will be added in v2.
+ * v1 was read-only: team names and player names were edited locally and
+ * were not persisted. v2 adds PATCH /v2/matches/{id}/teams/{team_id} and
+ * PATCH /v2/matches/{id}/players/{player_id} so the roster editor can save.
  */
-export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
+export function RosterAssigner({
+  players,
+  teams,
+  rosterImageUrl,
+  matchId,
+}: Props) {
   const initialTeamNames = {
     A: teams.find((t) => t.id === "A")?.name ?? "",
     B: teams.find((t) => t.id === "B")?.name ?? "",
   };
   const [entries, setEntries] = useState<RosterEntry[]>(players);
+  const [baselineEntries, setBaselineEntries] = useState<RosterEntry[]>(players);
+  const [initialTeamNamesSaved, setInitialTeamNamesSaved] = useState<
+    Record<"A" | "B", string>
+  >(initialTeamNames);
+  const [teamNames, setTeamNames] = useState<
+    Record<"A" | "B", string>
+  >(initialTeamNames);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
-  const [teamNames, setTeamNames] =
-    useState<Record<"A" | "B", string>>(initialTeamNames);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "success" | "error"
+  >("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -156,15 +173,70 @@ export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
   }
 
   function resetChanges() {
-    setEntries(players);
-    setTeamNames(initialTeamNames);
+    setEntries(baselineEntries);
+    setTeamNames(initialTeamNamesSaved);
     setDraggingId(null);
     setDropTarget(null);
+    setSaveStatus("idle");
+    setSaveError(null);
     announce("Cambios descartados");
   }
 
   function onDragOver(event: React.DragEvent) {
     event.preventDefault();
+  }
+
+  async function handleSave() {
+    const teamChanges = (["A", "B"] as const).map((letter) => ({
+      id: letter,
+      name: teamNames[letter] || null,
+    }));
+    const playerChanges = entries
+      .filter((p, i) => {
+        const base = baselineEntries[i];
+        return (
+          p.teamId !== base?.teamId || p.displayName !== base?.displayName
+        );
+      })
+      .map((p) => ({
+        id: p.id,
+        displayName: p.displayName || null,
+        teamId: p.teamId,
+      }));
+
+    if (teamChanges.every((t) => t.name === initialTeamNamesSaved[t.id as "A" | "B"]) && playerChanges.length === 0) {
+      return;
+    }
+
+    setSaveStatus("saving");
+    setSaveError(null);
+
+    try {
+      const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/roster`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teams: teamChanges,
+          players: playerChanges,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      // Update baseline to what we just saved
+      setBaselineEntries(entries);
+      setInitialTeamNamesSaved(teamNames);
+      setSaveStatus("success");
+      announce("Roster guardado");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch (error) {
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "Error desconocido");
+      announce("Error al guardar");
+    }
   }
 
   const unassigned = entries.filter((p) => p.teamId === null);
@@ -175,11 +247,11 @@ export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
   const dirty =
     entries.some(
       (p, i) =>
-        p.teamId !== players[i]?.teamId ||
-        p.displayName !== players[i]?.displayName,
+        p.teamId !== baselineEntries[i]?.teamId ||
+        p.displayName !== baselineEntries[i]?.displayName,
     ) ||
-    teamNames.A !== initialTeamNames.A ||
-    teamNames.B !== initialTeamNames.B;
+    teamNames.A !== initialTeamNamesSaved.A ||
+    teamNames.B !== initialTeamNamesSaved.B;
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,15 +273,25 @@ export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
               variant="ghost"
               size="sm"
               onClick={resetChanges}
-              disabled={!dirty}
+              disabled={!dirty || saveStatus === "saving"}
             >
               Descartar cambios
             </Button>
-            <Button disabled variant="outline" size="sm">
-              Guardar roster (v2)
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!dirty || saveStatus === "saving"}
+              variant={saveStatus === "success" ? "default" : "outline"}
+            >
+              {saveStatus === "saving" ? "Guardando…" : saveStatus === "success" ? "Guardado ✓" : "Guardar roster"}
             </Button>
           </div>
         </div>
+        {saveError && (
+          <p className="text-destructive text-sm" role="alert">
+            {saveError}
+          </p>
+        )}
         <p
           role="status"
           aria-live="polite"
@@ -220,10 +302,14 @@ export function RosterAssigner({ players, teams, rosterImageUrl }: Props) {
               <CheckIcon className="size-3.5 text-emerald-600" aria-hidden />
               {notice}
             </>
+          ) : saveStatus === "saving" ? (
+            <>
+              <span className="animate-spin">⏳</span> Guardando cambios…
+            </>
           ) : (
             <span>
-              Los nombres y equipos se mantienen en esta sesión hasta que
-              exista guardado (v2).
+              Los cambios se guardan en la base de datos con el botón
+              <strong>Guardar roster</strong>.
             </span>
           )}
         </p>
