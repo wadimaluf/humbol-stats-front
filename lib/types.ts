@@ -284,6 +284,17 @@ export interface MatchReadModelDocument extends MatchDetail {
   _calibration: Calibration;
 }
 
+export interface MatchSummaryV2 {
+  match_id: string;
+  title: string;
+  date: string;
+  status: string;
+  player_count: number;
+  duration_sec: number;
+  sprint_events_available: boolean;
+  processed: boolean;
+}
+
 /** Read-model document split into the pieces the pages consume. */
 export interface MatchReadModel {
   match: MatchDetail;

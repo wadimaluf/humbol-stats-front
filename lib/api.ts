@@ -10,6 +10,7 @@ import type {
   AddVideoSourceInput,
   MatchReadModel,
   MatchReadModelDocument,
+  MatchSummaryV2,
   MatchV2,
   MatchVideoSource,
   YouTubeLink,
@@ -136,13 +137,27 @@ export function getMatchV2(matchId: string) {
   );
 }
 
-/** List v2 matches newest-first (`match_id` is a YYYYMMDD date). */
-export function listMatchesV2(limit = 24, offset = 0) {
+/**
+ * List the dashboard cards in one request. The backend returns the aggregates
+ * and the unpaginated total in `X-Total-Count`, so the page does not need a
+ * read-model request per match.
+ */
+export async function listMatchSummaries(
+  limit = 24,
+  offset = 0,
+): Promise<{ items: MatchSummaryV2[]; total: number }> {
   const params = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
   });
-  return request<MatchV2[]>(`/v2/matches?${params.toString()}`);
+  const res = await send(`/v2/matches/summaries?${params.toString()}`);
+  const items = (await res.json()) as MatchSummaryV2[];
+  const header = res.headers.get("x-total-count");
+  const parsed = header === null ? Number.NaN : Number.parseInt(header, 10);
+  return {
+    items,
+    total: Number.isFinite(parsed) ? parsed : items.length,
+  };
 }
 
 /**
