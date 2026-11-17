@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,30 +13,23 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/app/data-states";
-import { BackendError, getMatchReadModel, listMatchesV2 } from "@/lib/api";
+import { listMatchSummaries } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import { formatMatchDate } from "@/lib/format";
-import type { MatchV2 } from "@/lib/types";
+import type { MatchSummaryV2 } from "@/lib/types";
 
 export const metadata = {
   title: "Partidos | Humbol Stats",
   description: "Partidos cargados y sus estadísticas",
 };
 
-interface MatchCardData {
-  matchId: string;
-  title: string;
-  /** Display date (already formatted) or the raw match id. */
-  date: string;
-  status: string;
-  playerCount: number;
-  durationSec: number;
-  hasSprintEvents: boolean;
-  /** processed = has read-model; pending = registered only; error = read failed. */
-  state: "processed" | "pending" | "error";
+const PAGE_SIZE = 12;
+
+interface MatchesSearchParams {
+  page?: string | string[];
 }
 
-export default function MatchesPage() {
+export default function MatchesPage(props: PageProps<"/partidos">) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -56,17 +49,36 @@ export default function MatchesPage() {
       </div>
 
       <Suspense fallback={<MatchesSkeleton />}>
-        <MatchesContent />
+        <MatchesContent searchParams={props.searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function MatchesContent() {
-  let matches: MatchV2[];
+function parsePage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const page = Number.parseInt(raw ?? "1", 10);
+  return Number.isFinite(page) && page > 0 ? page : 1;
+}
+
+function pageHref(page: number): string {
+  return page <= 1 ? "/partidos" : `/partidos?page=${page}`;
+}
+
+async function MatchesContent({
+  searchParams,
+}: {
+  searchParams: Promise<MatchesSearchParams>;
+}) {
+  const page = parsePage((await searchParams).page);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  let summaries: MatchSummaryV2[];
+  let total: number;
   try {
-    // Bounded page size: each card needs its read-model for the aggregates.
-    matches = await listMatchesV2(30);
+    const result = await listMatchSummaries(PAGE_SIZE, offset);
+    summaries = result.items;
+    total = result.total;
   } catch (error) {
     return (
       <ErrorState
@@ -77,7 +89,7 @@ async function MatchesContent() {
     );
   }
 
-  if (matches.length === 0) {
+  if (total === 0) {
     return (
       <EmptyState
         title="Todavía no hay partidos"
@@ -88,64 +100,44 @@ async function MatchesContent() {
     );
   }
 
-  const cards = await Promise.all(
-    matches.map(async (match) => {
-      const base = {
-        matchId: match.match_id,
-        title: `Partido ${match.match_id}`,
-        date: formatMatchDate(match.match_id),
-        status: "pending",
-        playerCount: 0,
-        durationSec: 0,
-        hasSprintEvents: false,
-      };
-      try {
-        const readModel = await getMatchReadModel(match.match_id);
-        const sprintEvents = readModel.match.quality?.sprintEvents;
-        return {
-          ...base,
-          title: readModel.match.title || base.title,
-          date: formatMatchDate(readModel.match.date || match.match_id),
-          status: readModel.match.status,
-          playerCount: readModel.players.length,
-          durationSec: readModel.match.durationSec ?? 0,
-          hasSprintEvents:
-            sprintEvents?.available ?? readModel.match.hasSprintEvents,
-          state: "processed",
-        } satisfies MatchCardData;
-      } catch (error) {
-        // 404 = registered but not processed yet. Anything else is a real
-        // failure and must not be disguised as "pending".
-        return {
-          ...base,
-          state:
-            error instanceof BackendError && error.status === 404
-              ? "pending"
-              : "error",
-        } satisfies MatchCardData;
-      }
-    }),
-  );
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  if (summaries.length === 0) {
+    return (
+      <EmptyState
+        title="Esta página no tiene partidos"
+        description={`Hay ${total} partido${total === 1 ? "" : "s"} en ${totalPages} página${totalPages === 1 ? "" : "s"}.`}
+        actionHref={pageHref(totalPages)}
+        actionLabel="Ir a la última página"
+      />
+    );
+  }
 
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {cards.map((match) => (
-        <li key={match.matchId}>
-          <MatchCard match={match} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <p className="text-muted-foreground text-sm">
+        {`${total} partido${total === 1 ? "" : "s"}${
+          totalPages > 1 ? ` · página ${page} de ${totalPages}` : ""
+        }`}
+      </p>
+
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {summaries.map((match) => (
+          <li key={match.match_id}>
+            <MatchCard match={match} />
+          </li>
+        ))}
+      </ul>
+
+      <Pagination page={page} totalPages={totalPages} />
+    </>
   );
 }
 
-function MatchCard({ match }: { match: MatchCardData }) {
-  const processed = match.state === "processed";
-  const failed = match.state === "error";
-  const href = processed
-    ? `/partidos/${match.matchId}`
-    : failed
-      ? `/partidos/${match.matchId}`
-      : `/partidos/${match.matchId}/carga`;
+function MatchCard({ match }: { match: MatchSummaryV2 }) {
+  const href = match.processed
+    ? `/partidos/${match.match_id}`
+    : `/partidos/${match.match_id}/carga`;
 
   return (
     <Link
@@ -157,51 +149,90 @@ function MatchCard({ match }: { match: MatchCardData }) {
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <CardTitle>{match.title}</CardTitle>
-              <CardDescription>{match.date}</CardDescription>
+              <CardDescription>{formatMatchDate(match.date)}</CardDescription>
             </div>
-            <Badge
-              variant={failed ? "destructive" : statusVariant(match.status)}
-            >
-              {failed ? "Error de lectura" : statusLabel(match.status)}
+            <Badge variant={statusVariant(match.status)}>
+              {statusLabel(match.status)}
             </Badge>
           </div>
         </CardHeader>
 
         <CardContent className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
-          {processed ? (
+          {match.processed ? (
             <>
-              <span>{match.playerCount} jugadores</span>
+              <span>{match.player_count} jugadores</span>
               <span aria-hidden>·</span>
-              <span>~{Math.round(match.durationSec / 60)} min</span>
+              <span>~{Math.round(match.duration_sec / 60)} min</span>
             </>
-          ) : failed ? (
-            <span>No pudimos leer las estadísticas de este partido</span>
           ) : (
             <span>Cargado, esperando procesamiento</span>
           )}
         </CardContent>
 
         <CardFooter className="justify-between">
-          {processed ? (
-            <Badge variant={match.hasSprintEvents ? "secondary" : "outline"}>
-              {match.hasSprintEvents ? "Con sprints" : "Sin sprints"}
+          {match.processed ? (
+            <Badge
+              variant={match.sprint_events_available ? "secondary" : "outline"}
+            >
+              {match.sprint_events_available ? "Con sprints" : "Sin sprints"}
             </Badge>
-          ) : failed ? (
-            <Badge variant="destructive">Lectura fallida</Badge>
           ) : (
             <Badge variant="outline">Sin procesar</Badge>
           )}
           <span className="text-primary inline-flex items-center gap-1 font-medium">
-            {processed
-              ? "Ver estadísticas"
-              : failed
-                ? "Reintentar"
-                : "Ver estado de la carga"}
+            {match.processed ? "Ver estadísticas" : "Ver estado de la carga"}
             <span aria-hidden>→</span>
           </span>
         </CardFooter>
       </Card>
     </Link>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+}: {
+  page: number;
+  totalPages: number;
+}) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="Paginación de partidos"
+      className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+    >
+      {page > 1 ? (
+        <Link
+          href={pageHref(page - 1)}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          ← Anterior
+        </Link>
+      ) : (
+        <Button variant="outline" size="sm" disabled>
+          ← Anterior
+        </Button>
+      )}
+      <span className="text-muted-foreground text-sm">
+        Página {page} de {totalPages}
+      </span>
+      {page < totalPages ? (
+        <Link
+          href={pageHref(page + 1)}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          Siguiente →
+        </Link>
+      ) : (
+        <Button variant="outline" size="sm" disabled>
+          Siguiente →
+        </Button>
+      )}
+    </nav>
   );
 }
 
