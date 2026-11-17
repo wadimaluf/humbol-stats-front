@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -16,7 +16,7 @@ import {
   ErrorState,
   PageSkeleton,
 } from "@/components/app/data-states";
-import { BackendError, getMatchReadModel } from "@/lib/api";
+import { BackendError, getMatchReadModel, matchExists } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import type { Roster } from "@/lib/types";
 
@@ -42,6 +42,11 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
     };
   } catch (error) {
     if (error instanceof BackendError && error.status === 404) {
+      // Registered but not processed yet: send the operator to /carga,
+      // matching the dashboard detail. Unknown ids stay 404.
+      if (await matchExists(id)) {
+        redirect(`/partidos/${encodeURIComponent(id)}/carga`);
+      }
       notFound();
     }
     return (
