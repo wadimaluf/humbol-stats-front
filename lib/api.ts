@@ -138,6 +138,22 @@ export function getMatchV2(matchId: string) {
 }
 
 /**
+ * Whether a match is registered at all. Used when a read-model 404 means
+ * "not processed yet" (redirect to /carga) rather than "does not exist".
+ */
+export async function matchExists(matchId: string): Promise<boolean> {
+  try {
+    await getMatchV2(matchId);
+    return true;
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
  * List the dashboard cards in one request. The backend returns the aggregates
  * and the unpaginated total in `X-Total-Count`, so the page does not need a
  * read-model request per match.

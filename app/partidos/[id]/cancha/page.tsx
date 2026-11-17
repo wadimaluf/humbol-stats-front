@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { AssetImage } from "@/components/app/asset-image";
 import { ErrorState, PageSkeleton } from "@/components/app/data-states";
-import { BackendError, getMatchReadModel } from "@/lib/api";
+import { BackendError, getMatchReadModel, matchExists } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import { describeCalibrationLabel } from "@/lib/format";
 import type { Calibration } from "@/lib/types";
@@ -34,6 +34,11 @@ async function CourtContent({ params }: { params: Promise<{ id: string }> }) {
     calibration = (await getMatchReadModel(id)).calibration;
   } catch (error) {
     if (error instanceof BackendError && error.status === 404) {
+      // Registered but not processed yet: send the operator to /carga,
+      // matching the dashboard detail. Unknown ids stay 404.
+      if (await matchExists(id)) {
+        redirect(`/partidos/${encodeURIComponent(id)}/carga`);
+      }
       notFound();
     }
     return (

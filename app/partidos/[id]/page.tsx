@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MatchSteps } from "@/components/app/match-steps";
 import { StatsDashboard } from "@/components/app/stats-dashboard";
 import { ErrorState, PageSkeleton } from "@/components/app/data-states";
-import { BackendError, getMatchReadModel, getMatchV2 } from "@/lib/api";
+import { BackendError, getMatchReadModel, matchExists } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
 import { formatMatchDate } from "@/lib/format";
 import type { MatchReadModel } from "@/lib/types";
@@ -80,16 +80,6 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
       />
     </div>
   );
-}
-
-async function matchExists(id: string): Promise<boolean> {
-  try {
-    await getMatchV2(id);
-    return true;
-  } catch (error) {
-    if (error instanceof BackendError && error.status === 404) return false;
-    throw error;
-  }
 }
 
 function DashboardSkeleton() {
