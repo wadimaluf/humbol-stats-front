@@ -272,6 +272,11 @@ export interface UpdatePlayerInput {
   team_id?: string | null;
 }
 
+export interface UpdateTeamInput {
+  /** Omit to leave unchanged; null clears the value. */
+  name?: string | null;
+}
+
 /**
  * Full camelCase read-model document served by
  * `GET /v2/matches/{id}/read-model` (same shape as `match_model.json`).

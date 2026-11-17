@@ -15,7 +15,9 @@ import type {
   MatchVideoSource,
   YouTubeLink,
   RosterEntry,
+  Team,
   UpdatePlayerInput,
+  UpdateTeamInput,
 } from "./types";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "";
@@ -243,6 +245,22 @@ export function updatePlayer(
 ) {
   return request<RosterEntry>(
     `/v2/matches/${encodeURIComponent(matchId)}/players/${encodeURIComponent(playerId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/** Edit an operator-owned field of a match team (currently the name). */
+export function updateTeam(
+  matchId: string,
+  teamId: string,
+  input: UpdateTeamInput,
+) {
+  return request<Team>(
+    `/v2/matches/${encodeURIComponent(matchId)}/teams/${encodeURIComponent(teamId)}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

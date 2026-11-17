@@ -101,6 +101,7 @@ async function RosterContent({ params }: { params: Promise<{ id: string }> }) {
           players={roster.players}
           teams={roster.teams}
           rosterImageUrl={rosterImageUrl}
+          matchId={id}
         />
       ) : (
         <EmptyState
