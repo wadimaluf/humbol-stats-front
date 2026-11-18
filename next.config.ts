@@ -19,6 +19,12 @@ const backendUrl = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(
 );
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Pin the upgrade policy so a future upstream default change can't
+    // silently alter how dev/build surface security advisories. "security"
+    // is already the default in 16.4.x; this documents the intent.
+    agentUpgrade: "security",
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
