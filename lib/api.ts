@@ -22,6 +22,11 @@ import type {
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "";
 
+// Shared secret for the mutating /v2 endpoints. Every caller of this module is
+// a server component or route handler, so the value never reaches the browser
+// bundle; a missing value makes writes fail closed with 401/503.
+const WRITE_TOKEN = process.env.INGEST_TOKEN ?? "";
+
 export function isBackendConfigured(): boolean {
   return BACKEND_URL.length > 0;
 }
@@ -74,9 +79,13 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   }
 
   const url = `${BACKEND_URL.replace(/\/$/, "")}${path}`;
+  const headers = new Headers(init?.headers);
+  if (WRITE_TOKEN) {
+    headers.set("X-Ingest-Token", WRITE_TOKEN);
+  }
   let res: Response;
   try {
-    res = await fetch(url, { ...init });
+    res = await fetch(url, { ...init, headers });
   } catch {
     throw new BackendError(
       `No se pudo conectar con la API en ${url}`,
