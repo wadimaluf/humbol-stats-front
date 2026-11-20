@@ -17,6 +17,9 @@ interface DriveFolder {
 export default function NuevoPartidoPage() {
   const [folder, setFolder] = useState<DriveFolder | null>(null);
   const [matchName, setMatchName] = useState("");
+  const [trimStart, setTrimStart] = useState("0");
+  const [trimEndInLast, setTrimEndInLast] = useState("");
+  const [calibration, setCalibration] = useState<"auto" | "fixed" | "landmarks">("auto");
   const [status, setStatus] = useState<"idle" | "creating" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const [matchId, setMatchId] = useState<string | null>(null);
@@ -53,6 +56,9 @@ export default function NuevoPartidoPage() {
           name: matchName.trim(),
           drive_folder_id: folder.id,
           drive_folder_url: folder.url,
+          trim_start: trimStart.trim() || "0",
+          trim_end_in_last: trimEndInLast.trim() || undefined,
+          calibration,
         }),
       });
 
@@ -128,7 +134,7 @@ export default function NuevoPartidoPage() {
         <CardHeader>
           <CardTitle>2. Nombre del partido</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Input
             placeholder="ej: vs River 2025-06-15"
             value={matchName}
@@ -136,6 +142,66 @@ export default function NuevoPartidoPage() {
             disabled={status === "creating"}
             className="max-w-md"
           />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Inicio del partido (en el primer video)
+              </label>
+              <Input
+                placeholder="00:03:30"
+                value={trimStart}
+                onChange={(e) => setTrimStart(e.target.value)}
+                disabled={status === "creating"}
+                className="max-w-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Segundos o HH:MM:SS desde el arranque de la primera grabación.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Final del partido (en el último video)
+              </label>
+              <Input
+                placeholder="00:14:45"
+                value={trimEndInLast}
+                onChange={(e) => setTrimEndInLast(e.target.value)}
+                disabled={status === "creating"}
+                className="max-w-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Segundos o HH:MM:SS desde el arranque de la última grabación.
+                Vacío = hasta el final.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Calibración de la cancha
+            </label>
+            <select
+              value={calibration}
+              onChange={(e) => setCalibration(e.target.value as "auto" | "fixed" | "landmarks")}
+              disabled={status === "creating"}
+              className="max-w-xs border rounded px-2 py-1"
+            >
+              <option value="auto">
+                Automática (transferir la referencia y validar contra líneas pintadas)
+              </option>
+              <option value="fixed">
+                Fija (reutilizar la homografía/ROI de 2025-06-10)
+              </option>
+              <option value="landmarks">
+                Manual (clicks en la UI — pendiente)
+              </option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cada fecha cambia el encuadre. <code>auto</code> registra la imagen
+              contra la referencia validada (SIFT en estructura estática) y pasa el
+              gate de líneas pintadas. <code>fixed</code> solo sirve si la cámara
+              está exactamente en la misma posición.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
