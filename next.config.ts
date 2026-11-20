@@ -44,6 +44,13 @@ const nextConfig: NextConfig = {
         source: "/v1/:path*",
         destination: `${backendUrl}/v1/:path*`,
       },
+      {
+        // v2 writes authenticate with the user's Google token (or the
+        // server-only ingest token), so proxying them keeps the backend origin
+        // hidden without exposing the shared secret to the browser.
+        source: "/v2/:path*",
+        destination: `${backendUrl}/v2/:path*`,
+      },
     ];
   },
 };

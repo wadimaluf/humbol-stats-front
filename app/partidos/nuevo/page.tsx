@@ -43,7 +43,7 @@ export default function NuevoPartidoPage() {
     setMessage("Creando partido y disparando procesamiento…");
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/v2/matches`, {
+      const res = await fetch("/v2/matches/from-drive", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,15 +73,18 @@ export default function NuevoPartidoPage() {
 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+  const appId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
 
-  if (!clientId || !apiKey) {
+  if (!clientId || !apiKey || !appId) {
     return (
       <div className="p-8 text-center">
         <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
         <h2 className="text-xl font-semibold">Faltan credenciales de Google</h2>
         <p className="text-muted-foreground mt-2">
-          Configurá <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> y <code>NEXT_PUBLIC_GOOGLE_API_KEY</code>
-          en <code>.env.local</code> y reiniciá el servidor.
+          Configurá <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>,{" "}
+          <code>NEXT_PUBLIC_GOOGLE_API_KEY</code> y{" "}
+          <code>NEXT_PUBLIC_GOOGLE_APP_ID</code> en <code>.env.local</code> y
+          reiniciá el servidor.
         </p>
       </div>
     );
@@ -104,8 +107,8 @@ export default function NuevoPartidoPage() {
           <DriveFolderPicker
             onFolderSelected={handleFolderSelect}
             clientId={clientId}
-            apiKey={apiKey}
             developerKey={apiKey}
+            appId={appId}
             disabled={status === "creating"}
           />
           {folder && (
