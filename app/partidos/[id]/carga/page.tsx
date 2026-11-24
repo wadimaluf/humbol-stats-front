@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ErrorState } from "@/components/app/data-states";
+import { RetryDownloadButton } from "@/components/app/retry-download-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackendError, getMatchV2 } from "@/lib/api";
 import { describeBackendError } from "@/lib/errors";
@@ -35,11 +36,20 @@ function formatSize(bytes: number | null): string | null {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const SOURCE_STATUS_LABELS: Record<string, string> = {
+  validated: "Validado",
+  queued: "En cola",
+  processing: "Procesando",
+  failed: "Falló",
+};
+
 function SourceStatus({ source }: { source: MatchVideoSource }) {
-  return source.status === "validated" ? (
-    <Badge variant="secondary">Validado</Badge>
-  ) : (
-    <Badge variant="outline">Pendiente de validación</Badge>
+  const label =
+    SOURCE_STATUS_LABELS[source.status] ?? "Pendiente de validación";
+  return (
+    <Badge variant={source.status === "failed" ? "destructive" : "outline"}>
+      {label}
+    </Badge>
   );
 }
 
@@ -120,18 +130,26 @@ async function MatchUploadStatusContent({
   const gdriveSources = match.sources.filter(
     (source) => source.provider === "gdrive",
   );
+  const failed = match.calibration_status === "failed";
+  // Solo se relanza lo que se puede volver a bajar: una fuente local no tiene
+  // token de Drive que renovar.
+  const canRetry = failed && gdriveSources.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <Badge variant="outline">Pendiente de procesamiento</Badge>
+          <Badge variant={failed ? "destructive" : "outline"}>
+            {failed ? "El procesamiento falló" : "Pendiente de procesamiento"}
+          </Badge>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Carga registrada
+            {failed ? "El procesamiento no terminó" : "Carga registrada"}
           </h1>
           <p className="text-muted-foreground text-sm">
-            Partido <span className="font-mono">{match.match_id}</span>. El
-            video quedó vinculado; falta que el job de procesamiento lo analice.
+            Partido <span className="font-mono">{match.match_id}</span>.{" "}
+            {failed
+              ? "El video sigue en tu Drive: se puede relanzar sin volver a cargar el formulario."
+              : "El video quedó vinculado; falta que el job de procesamiento lo analice."}
           </p>
         </div>
         <Button
@@ -142,6 +160,19 @@ async function MatchUploadStatusContent({
           Volver a partidos
         </Button>
       </div>
+
+      {failed && (
+        <Alert variant="destructive">
+          <AlertTitle>El run se cortó</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              {match.calibration_note ??
+                "El job de Kaggle no pudo terminar el procesamiento."}
+            </span>
+            {canRetry && <RetryDownloadButton matchId={match.match_id} />}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {youtubeWarning && (
         <Alert>
