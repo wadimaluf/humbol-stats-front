@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-declare global {
-  interface Window {
-    gapi: any;
-    google: any;
-  }
-}
+import { getDriveToken, loadDrivePicker } from "@/lib/google-drive";
+
+type PickerData = {
+  action?: string;
+  docs?: Array<{ id?: string }>;
+};
 
 interface DriveFolderPickerProps {
-  onFolderSelected: (folderId: string, folderUrl: string, accessToken: string) => void;
+  onFolderSelected: (folderId: string, folderUrl: string) => void;
   clientId: string;
   developerKey: string;
   appId: string;
@@ -33,8 +33,6 @@ export function DriveFolderPicker({
 }: DriveFolderPickerProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const tokenClient = useRef<any>(null);
-  const accessToken = useRef<{ value: string; expiresAt: number } | null>(null);
 
   useEffect(() => {
     if (!clientId || !developerKey || !appId) {
@@ -43,46 +41,16 @@ export function DriveFolderPicker({
     }
 
     let cancelled = false;
-    const loaded: Record<string, boolean> = { picker: false, gis: false };
-
-    const markLoaded = () => {
-      if (!cancelled && loaded.picker && loaded.gis) setReady(true);
-    };
-
-    // google.picker vive en el loader de APIs de Google.
-    const apiScript = document.createElement("script");
-    apiScript.src = "https://apis.google.com/js/api.js";
-    apiScript.async = true;
-    apiScript.onload = () => {
-      window.gapi.load("picker", () => {
-        loaded.picker = true;
-        markLoaded();
+    loadDrivePicker()
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setError("No se pudo cargar Google Picker");
       });
-    };
-    apiScript.onerror = () => setError("No se pudo cargar Google Picker");
-
-    // google.accounts.oauth2 es la librería vigente (gapi.auth2 está retirada).
-    const gisScript = document.createElement("script");
-    gisScript.src = "https://accounts.google.com/gsi/client";
-    gisScript.async = true;
-    gisScript.onload = () => {
-      tokenClient.current = window.google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: "https://www.googleapis.com/auth/drive.readonly",
-        callback: () => {},
-      });
-      loaded.gis = true;
-      markLoaded();
-    };
-    gisScript.onerror = () => setError("No se pudo cargar Google Sign-In");
-
-    document.head.appendChild(apiScript);
-    document.head.appendChild(gisScript);
 
     return () => {
       cancelled = true;
-      apiScript.remove();
-      gisScript.remove();
     };
   }, [clientId, developerKey, appId]);
 
@@ -100,15 +68,11 @@ export function DriveFolderPicker({
           .setDeveloperKey(developerKey)
           .setAppId(appId)
           .setTitle("Seleccioná la carpeta con los videos del partido")
-          .setCallback((data: any) => {
+          .setCallback((data: PickerData) => {
             if (data.action !== window.google.picker.Action.PICKED) return;
             const doc = data.docs?.[0];
             if (!doc?.id) return;
-            onFolderSelected(
-              doc.id,
-              `https://drive.google.com/drive/folders/${doc.id}`,
-              token,
-            );
+            onFolderSelected(doc.id, `https://drive.google.com/drive/folders/${doc.id}`);
           })
           .build();
 
@@ -121,37 +85,19 @@ export function DriveFolderPicker({
     [appId, developerKey, onFolderSelected],
   );
 
-  const requestToken = useCallback(
-    (prompt: "consent" | "") => {
-      const client = tokenClient.current;
-      if (!client) return;
-      client.callback = (response: any) => {
-        if (response.error) {
-          setError(`Google rechazó el acceso: ${response.error}`);
-          return;
-        }
-        const ttl = Number(response.expires_in ?? 3600);
-        accessToken.current = {
-          value: response.access_token,
-          expiresAt: Date.now() + (ttl - 60) * 1000,
-        };
-        showPicker(response.access_token);
-      };
-      client.requestAccessToken({ prompt });
-    },
-    [showPicker],
+  const getToken = useCallback(
+    () => getDriveToken(clientId, { minRemainingMs: 10 * 60 * 1000 }),
+    [clientId],
   );
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(async () => {
     setError(null);
-    const cached = accessToken.current;
-    if (cached && cached.expiresAt > Date.now()) {
-      showPicker(cached.value);
-      return;
+    try {
+      showPicker(await getToken());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos autorizar Drive");
     }
-    // Primer uso: consentimiento explícito. Siguientes: silencioso.
-    requestToken(accessToken.current ? "" : "consent");
-  }, [requestToken, showPicker]);
+  }, [getToken, showPicker]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!ready) {

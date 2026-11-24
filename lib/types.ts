@@ -328,7 +328,8 @@ export interface MatchVideoSource {
   title: string | null;
   mime_type: string | null;
   checksum: string | null;
-  status: "registered" | "validated";
+  /** Lifecycle reported by the API and the Kaggle kernel. */
+  status: "registered" | "queued" | "processing" | "validated" | "failed";
   validation_note: string | null;
 }
 

@@ -6,26 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getDriveToken } from "@/lib/google-drive";
 import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface DriveFolder {
   id: string;
   url: string;
-  token: string;
 }
 
+// El token dura una hora y lo usa el kernel de Kaggle cuando arranca (cola
+// incluida), así que al enviar pedimos uno con casi toda su vida por delante.
+const TOKEN_TTL_FOR_SUBMIT_MS = 50 * 60 * 1000;
+
 export default function NuevoPartidoPage() {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+  const appId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
+
   const [folder, setFolder] = useState<DriveFolder | null>(null);
   const [matchName, setMatchName] = useState("");
   const [trimStart, setTrimStart] = useState("0");
   const [trimEndInLast, setTrimEndInLast] = useState("");
   const [calibration, setCalibration] = useState<"auto" | "fixed" | "landmarks">("auto");
-  const [status, setStatus] = useState<"idle" | "creating" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "authorizing" | "creating" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const [matchId, setMatchId] = useState<string | null>(null);
+  const busy = status === "authorizing" || status === "creating";
 
-  const handleFolderSelect = (id: string, url: string, token: string) => {
-    setFolder({ id, url, token });
+  const handleFolderSelect = (id: string, url: string) => {
+    setFolder({ id, url });
     setStatus("idle");
     setMessage("");
   };
@@ -41,6 +50,30 @@ export default function NuevoPartidoPage() {
       setMessage("Poné un nombre al partido");
       return;
     }
+    if (!clientId) {
+      setStatus("error");
+      setMessage("Falta NEXT_PUBLIC_GOOGLE_CLIENT_ID en el front.");
+      return;
+    }
+
+    setStatus("authorizing");
+    setMessage("Renovando el permiso de Google Drive…");
+
+    // El token se emite acá, no cuando se eligió la carpeta: si el operador
+    // tardó en completar el formulario, el token de la selección ya es viejo.
+    let token: string;
+    try {
+      token = await getDriveToken(clientId, {
+        minRemainingMs: TOKEN_TTL_FOR_SUBMIT_MS,
+      });
+    } catch (err: any) {
+      setStatus("error");
+      setMessage(
+        err?.message ??
+          "No pudimos obtener permiso para leer la carpeta de Drive. Reintentá.",
+      );
+      return;
+    }
 
     setStatus("creating");
     setMessage("Creando partido y disparando procesamiento…");
@@ -50,7 +83,7 @@ export default function NuevoPartidoPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${folder.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: matchName.trim(),
@@ -76,10 +109,6 @@ export default function NuevoPartidoPage() {
       setMessage(err.message || "Error desconocido");
     }
   };
-
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-  const appId = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
 
   if (!clientId || !apiKey || !appId) {
     return (
@@ -115,7 +144,7 @@ export default function NuevoPartidoPage() {
             clientId={clientId}
             developerKey={apiKey}
             appId={appId}
-            disabled={status === "creating"}
+            disabled={busy}
           />
           {folder && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
@@ -207,21 +236,21 @@ export default function NuevoPartidoPage() {
 
       <Button
         onClick={handleCreate}
-        disabled={status === "creating" || !folder || !matchName.trim()}
+        disabled={busy || !folder || !matchName.trim()}
         className="w-full"
         size="lg"
       >
-        {status === "creating" ? (
+        {busy ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creando y procesando…
+            {status === "authorizing" ? "Autorizando Drive…" : "Creando y procesando…"}
           </>
         ) : (
           "🚀 Crear partido y procesar en Kaggle"
         )}
       </Button>
 
-      {status !== "idle" && (
+      {(status === "success" || status === "error") && (
         <Alert variant={status === "success" ? "default" : "destructive"} className="mt-4">
           <AlertDescription className="flex items-start gap-2">
             {status === "success" ? (
