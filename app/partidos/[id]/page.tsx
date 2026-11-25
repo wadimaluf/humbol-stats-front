@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +70,12 @@ async function DashboardContent({ params }: { params: Promise<{ id: string }> })
               ? ` · Calibración: ${calibration.rmsM} m RMS`
               : ""}
           </p>
+          <Link
+            href={`/partidos/${encodeURIComponent(id)}/carga`}
+            className="text-primary mt-1 inline-block text-xs underline underline-offset-4"
+          >
+            Estado del procesamiento y reproceso
+          </Link>
         </div>
       </div>
 

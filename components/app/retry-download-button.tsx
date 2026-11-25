@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Loader2, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,20 +11,36 @@ import { getDriveToken } from "@/lib/google-drive";
 // arrancar con casi toda su vida: no lo reutilizamos si ya lleva un rato.
 const TOKEN_TTL_FOR_RETRY_MS = 50 * 60 * 1000;
 
+interface RetryDownloadButtonProps {
+  matchId: string;
+  label?: string;
+  /** Pide confirmación antes de disparar (reprocesar un partido terminado). */
+  confirmMessage?: string;
+}
+
 /**
- * Relanza un partido que falló sin pedir el formulario de nuevo.
+ * Relanza el procesamiento de un partido sin pedir el formulario de nuevo.
  *
  * El backend guarda la carpeta, los trims y el modo de calibración; lo único
  * que falta es un token de Drive fresco, que Google emite en silencio porque
- * el usuario ya dio el consentimiento.
+ * el usuario ya dio el consentimiento. Sirve para un run que falló y también
+ * para reprocesar un partido terminado (por ejemplo, al sumar una etapa nueva
+ * al pipeline).
  */
-export function RetryDownloadButton({ matchId }: { matchId: string }) {
+export function RetryDownloadButton({
+  matchId,
+  label = "Reintentar descarga y procesamiento",
+  confirmMessage,
+}: RetryDownloadButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleClick = async () => {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+
     if (!clientId) {
       setError("Falta NEXT_PUBLIC_GOOGLE_CLIENT_ID en el front.");
       return;
@@ -51,7 +67,12 @@ export function RetryDownloadButton({ matchId }: { matchId: string }) {
         );
       }
 
-      router.refresh();
+      const cargaHref = `/partidos/${encodeURIComponent(matchId)}/carga`;
+      if (pathname?.endsWith("/carga")) {
+        router.refresh();
+      } else {
+        router.push(cargaHref);
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -74,7 +95,7 @@ export function RetryDownloadButton({ matchId }: { matchId: string }) {
         ) : (
           <>
             <RotateCcw className="mr-2 h-4 w-4" />
-            Reintentar descarga y procesamiento
+            {label}
           </>
         )}
       </Button>

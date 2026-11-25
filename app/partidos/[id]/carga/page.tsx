@@ -131,25 +131,38 @@ async function MatchUploadStatusContent({
     (source) => source.provider === "gdrive",
   );
   const failed = match.calibration_status === "failed";
+  const completed = match.calibration_status === "completed";
   // Solo se relanza lo que se puede volver a bajar: una fuente local no tiene
   // token de Drive que renovar.
-  const canRetry = failed && gdriveSources.length > 0;
+  const canReload = (failed || completed) && gdriveSources.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
-          <Badge variant={failed ? "destructive" : "outline"}>
-            {failed ? "El procesamiento falló" : "Pendiente de procesamiento"}
+          <Badge
+            variant={failed ? "destructive" : completed ? "secondary" : "outline"}
+          >
+            {failed
+              ? "El procesamiento falló"
+              : completed
+                ? "Procesado"
+                : "Pendiente de procesamiento"}
           </Badge>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {failed ? "El procesamiento no terminó" : "Carga registrada"}
+            {failed
+              ? "El procesamiento no terminó"
+              : completed
+                ? "Procesamiento terminado"
+                : "Carga registrada"}
           </h1>
           <p className="text-muted-foreground text-sm">
             Partido <span className="font-mono">{match.match_id}</span>.{" "}
             {failed
               ? "El video sigue en tu Drive: se puede relanzar sin volver a cargar el formulario."
-              : "El video quedó vinculado; falta que el job de procesamiento lo analice."}
+              : completed
+                ? "Las estadísticas ya están publicadas. Reprocesar vuelve a bajar el video y reemplaza los números."
+                : "El video quedó vinculado; falta que el job de procesamiento lo analice."}
           </p>
         </div>
         <Button
@@ -169,9 +182,30 @@ async function MatchUploadStatusContent({
               {match.calibration_note ??
                 "El job de Kaggle no pudo terminar el procesamiento."}
             </span>
-            {canRetry && <RetryDownloadButton matchId={match.match_id} />}
+            {canReload && <RetryDownloadButton matchId={match.match_id} />}
           </AlertDescription>
         </Alert>
+      )}
+
+      {completed && canReload && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Reprocesar</CardTitle>
+            <CardDescription>
+              Vuelve a bajar la misma carpeta de Drive y corre el pipeline
+              completo (~45 min de GPU). Se usa, por ejemplo, cuando el
+              pipeline suma una etapa nueva. Los nombres y equipos que hayas
+              asignado en el roster se conservan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RetryDownloadButton
+              matchId={match.match_id}
+              label="Reprocesar partido"
+              confirmMessage="Se vuelve a procesar el partido completo (~45 min de GPU) y se reemplazan las estadísticas. ¿Seguir?"
+            />
+          </CardContent>
+        </Card>
       )}
 
       {youtubeWarning && (
