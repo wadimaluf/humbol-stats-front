@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getDriveToken } from "@/lib/google-drive";
+import { getDriveToken, preloadDriveAuth } from "@/lib/google-drive";
 
 // El kernel puede esperar en la cola de Kaggle, así que el token tiene que
 // arrancar con casi toda su vida: no lo reutilizamos si ya lleva un rato.
@@ -37,6 +37,15 @@ export function RetryDownloadButton({
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Google Identity Services tiene que estar cargado antes del click: si el
+  // pedido de token arranca después de un await, el navegador bloquea la
+  // ventana de Google.
+  useEffect(() => {
+    preloadDriveAuth().catch(() => {
+      /* el error real aparece cuando el operador hace click */
+    });
+  }, []);
 
   const handleClick = async () => {
     if (confirmMessage && !window.confirm(confirmMessage)) return;

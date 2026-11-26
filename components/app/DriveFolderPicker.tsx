@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { getDriveToken, loadDrivePicker } from "@/lib/google-drive";
+import {
+  getDriveToken,
+  loadDrivePicker,
+  preloadDriveAuth,
+} from "@/lib/google-drive";
 
 type PickerData = {
   action?: string;
@@ -41,6 +45,9 @@ export function DriveFolderPicker({
     }
 
     let cancelled = false;
+    // GIS en paralelo con el Picker: el token se pide en el click, y el popup
+    // tiene que abrirse dentro del gesto.
+    preloadDriveAuth().catch(() => {});
     loadDrivePicker()
       .then(() => {
         if (!cancelled) setReady(true);
