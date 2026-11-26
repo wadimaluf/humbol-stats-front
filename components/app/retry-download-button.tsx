@@ -36,6 +36,7 @@ export function RetryDownloadButton({
   const pathname = usePathname();
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const [working, setWorking] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Google Identity Services tiene que estar cargado antes del click: si el
@@ -57,22 +58,32 @@ export function RetryDownloadButton({
 
     setWorking(true);
     setError(null);
+    setHint(null);
     try {
       const token = await getDriveToken(clientId, {
         minRemainingMs: TOKEN_TTL_FOR_RETRY_MS,
       });
 
-      const response = await fetch(
-        `/v2/matches/${encodeURIComponent(matchId)}/retry-download`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
+      // Render Free devuelve 429 mientras despierta; el 429 garantiza que el
+      // pedido no se procesó, así que reintentar no duplica el run.
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        response = await fetch(
+          `/v2/matches/${encodeURIComponent(matchId)}/retry-download`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (response.status !== 429 || attempt === 2) break;
+        setHint("El servidor estaba dormido. Despertándolo…");
+        await new Promise((resolve) => setTimeout(resolve, 2000 * (attempt + 1)));
+      }
+
+      const body = await response!.json().catch(() => null);
+      if (!response!.ok) {
         throw new Error(
-          (body as { detail?: string } | null)?.detail ?? `HTTP ${response.status}`,
+          (body as { detail?: string } | null)?.detail ?? `HTTP ${response!.status}`,
         );
       }
 
@@ -108,6 +119,7 @@ export function RetryDownloadButton({
           </>
         )}
       </Button>
+      {hint && !error && <p className="text-sm text-muted-foreground">{hint}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );

@@ -83,10 +83,29 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   if (WRITE_TOKEN) {
     headers.set("X-Ingest-Token", WRITE_TOKEN);
   }
-  let res: Response;
-  try {
-    res = await fetch(url, { ...init, headers });
-  } catch {
+  // Render Free duerme el servicio y devuelve 429 mientras arranca. Reintentar
+  // un GET es seguro y evita que el operador vea un error por un cold start.
+  const method = (init?.method ?? "GET").toUpperCase();
+  const canRetry = method === "GET" || method === "HEAD";
+  const retryable = new Set([429, 502, 503]);
+
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      res = await fetch(url, { ...init, headers });
+    } catch {
+      throw new BackendError(
+        `No se pudo conectar con la API en ${url}`,
+        0,
+        "NETWORK_ERROR",
+      );
+    }
+    if (res.ok) return res;
+    if (!canRetry || !retryable.has(res.status) || attempt === 2) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+  }
+
+  if (!res) {
     throw new BackendError(
       `No se pudo conectar con la API en ${url}`,
       0,

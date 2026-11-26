@@ -12,6 +12,9 @@ export function describeBackendError(error: unknown, resource: string): string {
     if (error.status === 404) {
       return `No encontramos ${resource}.`;
     }
+    if (error.status === 429 || error.status === 503) {
+      return `El servidor estaba dormido y todavía no terminó de despertar. Esperá unos segundos y recargá: ${resource} no cambió.`;
+    }
     return `La API respondió con un error (${error.status}) al cargar ${resource}.`;
   }
   return `Ocurrió un error inesperado al cargar ${resource}.`;
