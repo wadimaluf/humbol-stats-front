@@ -85,6 +85,32 @@ export function loadDrivePicker(): Promise<void> {
   );
 }
 
+/**
+ * Returns the token client only if GIS is already loaded, without awaiting.
+ *
+ * `requestAccessToken` opens a window, and browsers only allow that inside the
+ * click handler: awaiting anything first loses the gesture and the popup gets
+ * blocked. Components call `preloadDriveAuth` on mount so this hits.
+ */
+function tokenClientIfReady(clientId: string): TokenClient | null {
+  if (!window.google?.accounts?.oauth2) return null;
+  if (!tokenClient || tokenClientId !== clientId) {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      callback: () => {},
+    }) as TokenClient;
+    tokenClientId = clientId;
+    cachedToken = null;
+  }
+  return tokenClient;
+}
+
+/** Loads Google Identity Services ahead of the click that needs it. */
+export function preloadDriveAuth(): Promise<void> {
+  return loadScript(GIS_SRC);
+}
+
 async function getTokenClient(clientId: string): Promise<TokenClient> {
   await loadScript(GIS_SRC);
   if (!tokenClient || tokenClientId !== clientId) {
@@ -150,9 +176,15 @@ function toAuthError(code: string): DriveAuthError {
         "Se cerró la ventana de Google antes de autorizar el acceso a Drive.",
         code,
       );
+    case "popup_blocked_by_browser":
+    case "popup_failed_to_open":
+      return new DriveAuthError(
+        "El navegador bloqueó la ventana de Google. Permití las ventanas emergentes para este sitio y reintentá.",
+        code,
+      );
     case "interaction_required":
       return new DriveAuthError(
-        "Google pide que autorices el acceso a Drive de nuevo.",
+        "Google pide que autorices el acceso a Drive de nuevo. Reintentá y completá la ventana de Google.",
         code,
       );
     default:
@@ -160,8 +192,7 @@ function toAuthError(code: string): DriveAuthError {
   }
 }
 
-async function requestToken(clientId: string): Promise<string> {
-  const client = await getTokenClient(clientId);
+async function requestTokenWith(client: TokenClient): Promise<string> {
   try {
     return await requestAccessToken(client, "");
   } catch (err) {
@@ -172,6 +203,10 @@ async function requestToken(clientId: string): Promise<string> {
     }
     throw err;
   }
+}
+
+async function requestToken(clientId: string): Promise<string> {
+  return requestTokenWith(await getTokenClient(clientId));
 }
 
 /**
@@ -198,9 +233,14 @@ export function getDriveToken(
   }
   if (inFlight) return inFlight;
 
-  const request = requestToken(clientId).finally(() => {
-    inFlight = null;
-  });
+  // Order matters: if GIS is loaded (the normal case after preload), the token
+  // request starts synchronously inside the click gesture.
+  const ready = tokenClientIfReady(clientId);
+  const request = (ready ? requestTokenWith(ready) : requestToken(clientId)).finally(
+    () => {
+      inFlight = null;
+    },
+  );
   inFlight = request;
   return request;
 }
