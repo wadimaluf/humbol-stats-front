@@ -1,5 +1,6 @@
 "use client";
 
+import { redirect } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   Card,
@@ -231,7 +232,8 @@ export function RosterAssigner({
       setInitialTeamNamesSaved(teamNames);
       setSaveStatus("success");
       announce("Roster guardado");
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      // Redirigir al dashboard de estadísticas para que el stepper quede desbloqueado
+      redirect(`/partidos/${matchId}`);
     } catch (error) {
       setSaveStatus("error");
       setSaveError(error instanceof Error ? error.message : "Error desconocido");
